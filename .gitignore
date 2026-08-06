@@ -1,0 +1,29 @@
+# Secrets - NEVER commit real keys
+.env
+.env.*
+!*.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Runtime data / databases
+*.db
+*.db-journal
+*.sqlite3
+logs/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Agent / scratch
+.agent/
+tmp/
+*.tmp
