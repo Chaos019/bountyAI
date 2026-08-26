@@ -45,7 +45,7 @@ body::after{content:'';position:fixed;top:-40vh;left:-20vw;width:80vw;height:80v
 .ntab.on{color:var(--lime);background:var(--ld)}
 .ndot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.4;flex-shrink:0}
 .ntab.on .ndot{opacity:1;animation:blink 2s infinite}
-.godmode-badge{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--yellow);background:rgba(255,201,68,.12);border:1px solid rgba(255,201,68,.3);padding:2px 8px;border-radius:3px;font-weight:700;animation:godpulse 2s ease-in-out infinite}
+.ai-badge{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1.5px;color:var(--yellow);background:rgba(255,201,68,.12);border:1px solid rgba(255,201,68,.3);padding:2px 8px;border-radius:3px;font-weight:700;animation:godpulse 2s ease-in-out infinite}
 @keyframes godpulse{0%,100%{opacity:.7}50%{opacity:1}}
 .tbr{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .apill{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.5px;padding:5px 11px;background:var(--bg3);border:1px solid var(--ln);border-radius:4px;cursor:default}
@@ -96,7 +96,7 @@ body::after{content:'';position:fixed;top:-40vh;left:-20vw;width:80vw;height:80v
 
 /* ── HERO ── */
 .hero{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;background:linear-gradient(135deg,rgba(180,240,66,.05) 0%,rgba(53,232,196,.04) 50%,transparent 100%);border:1px solid rgba(180,240,66,.12);border-radius:var(--r);padding:28px 32px;margin-bottom:20px;position:relative;overflow:hidden}
-.hero::before{content:'GOD MODE';position:absolute;right:24px;top:16px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:4px;color:rgba(180,240,66,.15);font-weight:700}
+.hero::before{content:'AI ENGINE';position:absolute;right:24px;top:16px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:4px;color:rgba(180,240,66,.15);font-weight:700}
 .htitle{font-size:32px;font-weight:900;letter-spacing:-1px;line-height:1.15;margin-bottom:10px}
 .htitle em{color:var(--lime);font-style:normal;background:linear-gradient(90deg,var(--lime),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .hsub{font-size:13.5px;color:var(--t2);line-height:1.7;max-width:560px;margin-bottom:14px}
@@ -413,7 +413,7 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
 .posture-grade{font-size:64px;font-weight:900;font-family:'IBM Plex Mono',monospace;letter-spacing:-3px;line-height:1}
 .posture-A{color:var(--lime)}.posture-B{color:var(--cyan)}.posture-C{color:var(--yellow)}.posture-D{color:var(--orange)}.posture-F{color:var(--red)}
 
-/* ── GODMODE LAB ── */
+/* ── AI LAB ── */
 .flow-container{display:flex;flex-direction:column;gap:20px;padding:20px;position:relative}
 .flow-step{display:flex;align-items:center;gap:15px;position:relative}
 .flow-node{width:140px;padding:12px;border-radius:10px;background:var(--bg3);border:2px solid var(--ln);text-align:center;font-size:11px;font-weight:700;z-index:2;transition:all .3s}
@@ -640,8 +640,8 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
         <button class="btn bdim" onclick="clrRecon()">✕ Clear</button>
       </div>
       <div class="tw" style="margin-bottom:0;flex:1;min-height:320px">
-        <div class="twtop"><div class="tdot" style="background:#ff5f57"></div><div class="tdot" style="background:#febc2e;margin-left:5px"></div><div class="tdot" style="background:#28c840;margin-left:5px"></div><div class="twlbl">BOUNTYAI GOD MODE RECON ENGINE — 20-MODULE MULTI-AGENT SCANNER</div></div>
-        <div class="tbody" id="termout"><div><span class="tp">bountyai@godmode:~$ </span><span class="td">Ready. Enter a domain and click Run Recon to dispatch all 20 modules.</span></div></div>
+        <div class="twtop"><div class="tdot" style="background:#ff5f57"></div><div class="tdot" style="background:#febc2e;margin-left:5px"></div><div class="tdot" style="background:#28c840;margin-left:5px"></div><div class="twlbl">BOUNTYAI AI RECON ENGINE — 20-MODULE MULTI-AGENT SCANNER</div></div>
+        <div class="tbody" id="termout"><div><span class="tp">bountyai@ai:~$ </span><span class="td">Ready. Enter a domain and click Run Recon to dispatch all 20 modules.</span></div></div>
       </div>
       <div id="rout" style="display:none">
         <div class="rcols"><div class="rbox"><div class="rboxt">Subdomains Discovered</div><div id="rsubs"></div></div><div class="rbox"><div class="rboxt">Technology Stack</div><div id="rtech"></div></div></div>
@@ -651,7 +651,7 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
     <div style="display:flex;flex-direction:column">
       <div class="sl">20-Module Pipeline</div>
       <div class="card" style="padding:14px 12px;display:flex;flex-direction:column;gap:8px;max-height:82vh;overflow-y:auto;background:var(--bg3)">
-        <div style="font-size:10px;color:var(--t2);padding-bottom:8px;border-bottom:1px solid var(--ln2);line-height:1.5">The Bug Bounty Assistant God Mode engine automatically dispatches these 20 modules:</div>
+        <div style="font-size:10px;color:var(--t2);padding-bottom:8px;border-bottom:1px solid var(--ln2);line-height:1.5">The Bug Bounty Assistant AI engine automatically dispatches these 20 modules:</div>
         <div id="engine-modules"></div>
       </div>
     </div>
@@ -847,7 +847,7 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
 <!-- ══════════════════════════ INTEGRATIONS ══════════════════════════ -->
 <div id="panel-conn" class="panel"><div class="pg">
   <div class="sync-summary">
-    <div style="font-size:18px;font-weight:800;margin-bottom:4px">🔗 God Mode Integration Hub</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:4px">🔗 AI Integration Hub</div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:16px">Link all your bug bounty accounts and view everything in one command center</div>
     <div class="sync-row">
       <div class="sync-stat"><div class="sync-stat-v" id="sync-programs">0</div><div class="sync-stat-l">PROGRAMS SYNCED</div></div>
@@ -869,15 +869,15 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
   </div>
 </div></div>
 
-<!-- ══════════════════════════ GODMODE LAB ══════════════════════════ -->
+<!-- ══════════════════════════ AI LAB ══════════════════════════ -->
 <div id="panel-glab" class="panel"><div class="pg">
   <div class="hero" style="margin-bottom:20px;background:linear-gradient(135deg,rgba(255,201,68,.08),rgba(255,63,98,.05));border-color:rgba(255,201,68,.2)">
     <div>
-      <div class="htitle" style="font-size:24px">⚡ GodMode <em>Security Lab</em></div>
+      <div class="htitle" style="font-size:24px">⚡ AI <em>Security Lab</em></div>
       <div class="hsub">Advanced multi-modal reasoning. Analyze raw traffic, visualize attack paths, and generate weaponized payloads.</div>
     </div>
     <div style="text-align:right">
-      <div class="godmode-badge" style="font-size:10px;padding:4px 12px">CORE INTELLIGENCE V3</div>
+      <div class="ai-badge" style="font-size:10px;padding:4px 12px">CORE INTELLIGENCE V3</div>
     </div>
   </div>
 
@@ -1307,16 +1307,39 @@ function renderProgs(){
     var k=p.name[0];var ico=PICO[k]||{bg:'var(--bg3)',c:'var(--txt)'};
     var si=(p.scope_in||[]).map(function(s){return '<div class="scrow in"><span>✓</span>'+s+'</div>';}).join('');
     var so=(p.scope_out||[]).slice(0,2).map(function(s){return '<div class="scrow out"><span>✗</span>'+s+'</div>';}).join('');
-    return '<div class="pcard" onclick="pickP(this)"><div class="pctop"><div class="pchead"><div class="pcico" style="background:'+ico.bg+';color:'+ico.c+'">'+k+'</div><div><div class="pcname">'+p.name+'</div><div class="pcplat">'+p.platform+'</div></div>'+(p.beginner_friendly?'<span class="sv svL" style="margin-left:auto">BEGINNER</span>':'<span class="sv" style="margin-left:auto;background:var(--bd);color:var(--blue);border:1px solid rgba(72,150,255,.25)">'+(p.category||'').toUpperCase()+'</span>')+'</div><div class="paygrid"><div class="payc"><div class="payt">CRITICAL</div><div class="paya" style="color:var(--red)">'+(p.payout_critical||'-')+'</div></div><div class="payc"><div class="payt">HIGH</div><div class="paya" style="color:var(--orange)">'+(p.payout_high||'-')+'</div></div><div class="payc"><div class="payt">MEDIUM</div><div class="paya" style="color:var(--yellow)">'+(p.payout_medium||'-')+'</div></div><div class="payc"><div class="payt">LOW</div><div class="paya" style="color:var(--lime)">'+(p.payout_low||'-')+'</div></div></div></div><div class="scwrap">'+si+so+'</div><div class="pcfoot"><div class="resp">Avg '+(p.response_days||5)+'-day response</div><button class="btn blime bsm" onclick="event.stopPropagation();rjump(\''+p.domain+'\')">Recon</button></div></div>';
+    var scopePipe=(p.scope_in||[]).join('|');
+    return '<div class="pcard" onclick="pickP(this)"><div class="pctop"><div class="pchead"><div class="pcico" style="background:'+ico.bg+';color:'+ico.c+'">'+k+'</div><div><div class="pcname">'+p.name+'</div><div class="pcplat">'+p.platform+'</div></div>'+(p.beginner_friendly?'<span class="sv svL" style="margin-left:auto">BEGINNER</span>':'<span class="sv" style="margin-left:auto;background:var(--bd);color:var(--blue);border:1px solid rgba(72,150,255,.25)">'+(p.category||'').toUpperCase()+'</span>')+'</div><div class="paygrid"><div class="payc"><div class="payt">CRITICAL</div><div class="paya" style="color:var(--red)">'+(p.payout_critical||'-')+'</div></div><div class="payc"><div class="payt">HIGH</div><div class="paya" style="color:var(--orange)">'+(p.payout_high||'-')+'</div></div><div class="payc"><div class="payt">MEDIUM</div><div class="paya" style="color:var(--yellow)">'+(p.payout_medium||'-')+'</div></div><div class="payc"><div class="payt">LOW</div><div class="paya" style="color:var(--lime)">'+(p.payout_low||'-')+'</div></div></div></div><div class="scwrap">'+si+so+'</div><div class="pcfoot"><div class="resp">Avg '+(p.response_days||5)+'-day response</div><button class="btn blime bsm" onclick="event.stopPropagation();rjump(\''+p.domain+'\',\''+scopePipe+'\',\''+(p.target_domain||'')+'\')">Recon</button></div></div>';
   }).join('');
 }
 function pickP(el){document.querySelectorAll('.pcard').forEach(function(c){c.classList.remove('sel');});el.classList.add('sel');}
-function rjump(d){document.getElementById('ri').value=d;go('recon');setTimeout(doRecon,400);}
+function extractDomain(s){
+  s=s.replace(/^\*\./,'').replace(/\/$/,'');
+  if(s.match(/^https?:\/\//)){try{return new URL(s).hostname;}catch(e){return s;}}
+  if(s.match(/^[\w.-]+\.\w{2,}$/))return s;
+  return '';
+}
+function rjump(d,scopeIn,targetDomain){
+  var domain='';
+  if(targetDomain)domain=extractDomain(targetDomain);
+  if(!domain&&scopeIn){
+    var parts=scopeIn.split('|');
+    for(var i=0;i<parts.length;i++){
+      domain=extractDomain(parts[i]);
+      if(domain)break;
+    }
+  }
+  if(!domain)domain=extractDomain(d)||d;
+  document.getElementById('ri').value=domain;
+  go('recon');setTimeout(doRecon,400);
+}
 function syncH1(){
   var btn=document.getElementById('syncbtn');
   if(btn){btn.textContent='Syncing...';btn.disabled=true;}
   api('POST','/programs/sync').then(function(r){
-    showToast('Sync complete: '+r.synced+' programs added');
+    showToast('Curated sync: '+r.synced+' programs added');
+    return api('GET','/programs/live');
+  }).then(function(r){
+    showToast('Live fetch: '+(r.total||0)+' programs from Bugcrowd & HackerOne');
     loadProgs();
     if(btn){btn.innerHTML='⟳ Global Live Sync';btn.disabled=false;}
   }).catch(function(e){
@@ -1369,7 +1392,7 @@ function doRecon() {
   term.innerHTML = ''; document.getElementById('rout').style.display = 'none';
   btn.textContent = 'Scanning...'; btn.disabled = true;
   var pre = [
-    '<span class="tp">bountyai@godmode:~$ </span><span style="color:var(--txt)">recon --target '+domain+' --modules all --full</span>',
+    '<span class="tp">bountyai@ai:~$ </span><span style="color:var(--txt)">recon --target '+domain+' --modules all --full</span>',
     '<span class="td">[*] Initializing 20-module pipeline...</span>',
     '<span class="ts">[+] Target: '+domain+'</span>',
     '<span class="td">[*] Querying crt.sh (LIVE)...</span>',
@@ -1407,14 +1430,12 @@ function doRecon() {
 function showReconOut(r) {
   currVulns = r.vuln_suggestions || [];
   if(currVulns.length === 0) {
-    // Generate default suggestions if none from server
     currVulns = [
       {type: "Information Disclosure", severity: "M", finding: "Check for sensitive info in HTTP headers", target: "HTTP Headers"},
       {type: "SSL/TLS Issues", severity: "M", finding: "Verify SSL certificate configuration", target: "SSL"},
       {type: "Missing SPF/DKIM", severity: "L", finding: "Check email domain DNS records", target: "Email Security"}
     ];
   }
-  // Map server response to frontend format
   currVulns = currVulns.map(function(v) {
     return {
       title: v.type || v.title || v.finding || "Unknown",
@@ -1435,29 +1456,123 @@ function showReconOut(r) {
       +'<div class="vcd">'+v.description+'</div>'
       +'<div class="vcp">'+v.payload+'</div></div>';
   }).join('');
+
+  // ── MODULE RESULTS TERMINAL OUTPUT ──
+  var term = document.getElementById('termout');
+  var mr = r.module_results || {};
+  var domain = (r.domain || document.getElementById('ri').value.replace(/https?:\/\//,'').split('/')[0]);
+  term.innerHTML += '<div style="margin-top:10px;border-top:1px solid #222;padding-top:10px">';
+  term.innerHTML += '<div><span class="tp">bountyai@recon:~$ </span><span class="td" style="color:var(--cyan)">scan --module-all --target '+domain+'</span></div>';
+  term.innerHTML += '<div style="color:var(--t3);margin:4px 0 8px 0">── 20-Module Multi-Agent Scan Results ──</div>';
+
+  var MODULE_NAMES = {
+    "01_subdomains": "[01] Subdomain Enum",
+    "02_ports": "[02] Port Scanning",
+    "03_screenshots": "[03] Screenshot Capture",
+    "04_directories": "[04] Directory Brute",
+    "05_javascript": "[05] JavaScript Analysis",
+    "06_parameters": "[06] Parameter Discovery",
+    "07_xss": "[07] XSS Detection",
+    "08_sqli": "[08] SQL Injection",
+    "09_ssrf": "[09] SSRF Discovery",
+    "10_lfi": "[10] LFI/RFI Detection",
+    "11_redirects": "[11] Open Redirect",
+    "12_headers": "[12] Security Headers",
+    "13_api": "[13] API Recon",
+    "14_wayback": "[14] Content Discovery",
+    "15_s3": "[15] S3 Bucket Enum",
+    "16_cms": "[16] CMS Detection",
+    "17_waf": "[17] WAF Detection",
+    "18_disclosure": "[18] Info Disclosure",
+    "19_shell": "[19] Reverse Shell",
+    "20_exploit": "[20] Mass Exploitation"
+  };
+  var MODULE_TOOLS = {
+    "01_subdomains": "Subfinder, crt.sh, Hackertarget",
+    "02_ports": "TCP Connect Scanner",
+    "03_screenshots": "HTTP HEAD Probes",
+    "04_directories": "Custom Wordlist (31 paths)",
+    "05_javascript": "LinkFinder, Regex Scanner",
+    "06_parameters": "Param Spider, Reflection Test",
+    "07_xss": "Dalfox-style Payloads",
+    "08_sqli": "SQLMap Error Probes",
+    "09_ssrf": "Gopherus-style Probes",
+    "10_lfi": "Path Traversal Payloads",
+    "11_redirects": "Open Redirect Detection",
+    "12_headers": "Nikto-style Header Audit",
+    "13_api": "Kiterunner-style API Paths",
+    "14_wayback": "Wayback Machine API",
+    "15_s3": "AWS Bucket Dump Probes",
+    "16_cms": "CMSeeK-style Fingerprint",
+    "17_waf": "Wafw00f-style WAF Detection",
+    "18_disclosure": "GitDumper, TruffleHog Probes",
+    "19_shell": "MSF Venom (skipped)",
+    "20_exploit": "Metasploit (skipped)"
+  };
+
+  var moduleOrder = ["01_subdomains","02_ports","03_screenshots","04_directories","05_javascript","06_parameters","07_xss","08_sqli","09_ssrf","10_lfi","11_redirects","12_headers","13_api","14_wayback","15_s3","16_cms","17_waf","18_disclosure","19_shell","20_exploit"];
+
+  moduleOrder.forEach(function(key){
+    var m = mr[key];
+    if(!m) return;
+    var name = MODULE_NAMES[key] || key;
+    var tools = MODULE_TOOLS[key] || "";
+    var statusColor = m.status === "found" || m.status === "detected" || m.status === "vulnerable" || m.status === "accessible" || m.status === "open" || m.status === "captured" || m.status === "ok" || m.status === "incomplete"
+      ? (m.status === "found" || m.status === "detected" || m.status === "vulnerable" || m.status === "accessible" ? "var(--green)" : "var(--yellow)")
+      : "var(--t3)";
+
+    term.innerHTML += '<div style="margin-top:8px;padding:6px 0;border-top:1px solid #1a1a1a">';
+    term.innerHTML += '<div style="color:'+statusColor+';font-weight:bold">[MODULE '+key.split('_')[0].replace(/^0/,'')+'] '+name.replace(/^\[\d+\]\s*/,'')+'</div>';
+    term.innerHTML += '<div style="color:var(--t3);font-size:10px;padding-left:12px">'+tools+'</div>';
+
+    if(m.items && m.items.length > 0){
+      m.items.forEach(function(item){
+        var itemColor = "var(--t2)";
+        if(typeof item === "string"){
+          if(item.includes("CRITICAL") || item.includes("vulnerable") || item.includes("accessible")) itemColor = "var(--red)";
+          else if(item.includes("HIGH") || item.includes("missing") || item.includes("incomplete")) itemColor = "var(--orange)";
+          else if(item.includes("MEDIUM") || item.includes("found") || item.includes("detected")) itemColor = "var(--yellow)";
+          else if(item.includes("none") || item.includes("skipped")) itemColor = "var(--t3)";
+        }
+        term.innerHTML += '<div style="color:'+itemColor+';padding-left:16px;margin:1px 0">└─ '+item+'</div>';
+      });
+    } else {
+      term.innerHTML += '<div style="color:var(--t3);padding-left:16px">└─ No results</div>';
+    }
+    term.innerHTML += '<div style="color:'+statusColor+';padding-left:16px;font-size:10px">→ Status: <b>'+m.status.toUpperCase()+'</b> ('+m.count+' items)</div>';
+    term.innerHTML += '</div>';
+  });
+
+  term.innerHTML += '<div style="color:var(--lime);margin-top:10px;padding:6px 0;border-top:1px solid #222">✓ All 20 modules executed. Scan complete in '+(r.scan_duration||0)+'s</div>';
+  term.innerHTML += '<div style="color:var(--t3);font-size:10px">Sources: '+(r.data_source||'live')+' | CVEs: '+(r.cves_found||[]).length+' | Vulns: '+currVulns.length+'</div>';
+  term.innerHTML += '</div>';
+  term.scrollTop = term.scrollHeight;
+
   document.getElementById('rbtn').textContent = '▶ Run Recon';
   document.getElementById('rbtn').disabled = false;
+  var domain2 = document.getElementById('ri').value.trim().replace(/https?:\/\//,'').split('/')[0];
+  autoLogAllFindings(domain2, currVulns, r.cves_found || []);
 }
 
-function clrRecon(){document.getElementById('termout').innerHTML='<div><span class="tp">bountyai@godmode:~$ </span><span class="td">Cleared.</span></div>';document.getElementById('rout').style.display='none';document.getElementById('ri').value='';}
+function clrRecon(){document.getElementById('termout').innerHTML='<div><span class="tp">bountyai@ai:~$ </span><span class="td">Cleared.</span></div>';document.getElementById('rout').style.display='none';document.getElementById('ri').value='';}
 
 function runMLFromRecon() {
   var domain = document.getElementById('ri').value.trim().replace(/https?:\/\//,'').split('/')[0];
   if (!domain) { showToast('Enter a domain first','err'); return; }
   var term = document.getElementById('termout');
-  term.innerHTML = '<div><span class="tp">bountyai@godmode:~$ </span><span style="color:var(--cyan)">ml-predict --domain '+domain+'</span></div>';
-  term.innerHTML += '<span class="td">[*] Running ML vulnerability prediction...</span>';
+  term.innerHTML = '<div><span class="tp">bountyai@ai:~$ </span><span style="color:var(--cyan)">ml-predict --domain '+domain+'</span></div>';
+  term.innerHTML += '<div class="td">[*] Running ML vulnerability prediction...</div>';
   
   var techInput = prompt('Enter technology stack (comma separated):', 'nginx, mysql, react, aws');
   if(!techInput) return;
   var techStack = techInput.split(',').map(function(t){ return t.trim(); });
   
-  api('POST','/api/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
-    term.innerHTML += '<span class="ts">[+] ML Predictions for '+domain+'</span>';
-    term.innerHTML += '<span class="td">--- Vulnerability Predictions ---</span>';
+    api('POST','/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
+    term.innerHTML += '<div class="td" style="color:var(--green);margin-top:8px">[+] ML Predictions for <b>'+domain+'</b></div>';
+    term.innerHTML += '<div class="td" style="color:var(--t3);margin-bottom:4px">── Vulnerability Predictions ──</div>';
     r.predictions.forEach(function(p){
       var color = p.severity === 'CRITICAL' ? 'var(--red)' : p.severity === 'HIGH' ? 'var(--orange)' : p.severity === 'MEDIUM' ? 'var(--yellow)' : 'var(--lime)';
-      term.innerHTML += '<span class="td"><span style="color:'+color+'">['+p.severity+']</span> '+p.type+' ('+p.confidence+'% confidence) - '+p.reason+'</span>';
+      term.innerHTML += '<div class="td" style="padding-left:12px;margin:2px 0"><span style="color:'+color+'">['+p.severity+']</span> <b>'+p.type+'</b> ('+p.confidence+'% confidence)<br><span style="color:var(--t2);padding-left:16px">'+p.reason+'</span></div>';
     });
     currVulns = r.predictions;
     document.getElementById('rout').style.display = 'block';
@@ -1471,27 +1586,27 @@ function runMLFromRecon() {
     }).join('');
     showToast('ML Prediction complete!');
   }).catch(function(e){
-    term.innerHTML += '<span class="td" style="color:var(--red)">Error: '+e.message+'</span>';
+    term.innerHTML += '<div class="td" style="color:var(--red)">Error: '+e.message+'</div>';
   });
 }
 
 function loadNucleiFromRecon() {
   var term = document.getElementById('termout');
-  term.innerHTML = '<div><span class="tp">bountyai@godmode:~$ </span><span style="color:var(--cyan)">nuclei-templates --list</span></div>';
-  term.innerHTML += '<span class="td">[*] Loading vulnerability templates...</span>';
+  term.innerHTML = '<div><span class="tp">bountyai@ai:~$ </span><span style="color:var(--cyan)">nuclei-templates --list</span></div>';
+  term.innerHTML += '<div class="td">[*] Loading vulnerability templates...</div>';
   
-  api('GET','/api/nuclei/templates').then(function(r){
-    term.innerHTML += '<span class="ts">[+] Loaded '+r.count+' templates from '+r.sources.length+' sources</span>';
-    term.innerHTML += '<span class="td">--- Nuclei Templates by Severity ---</span>';
+    api('GET','/nuclei/templates').then(function(r){
+    term.innerHTML += '<div class="td" style="color:var(--green);margin-top:8px">[+] Loaded '+r.count+' templates from '+r.sources.length+' sources</div>';
+    term.innerHTML += '<div class="td" style="color:var(--t3);margin-bottom:4px">── Nuclei Templates by Severity ──</div>';
     var all = [...(r.templates.critical||[]), ...(r.templates.high||[]), ...(r.templates.medium||[]), ...(r.templates.info||[])].slice(0,15);
     all.forEach(function(t){
       var color = t.severity === 'critical' ? 'var(--red)' : t.severity === 'high' ? 'var(--orange)' : t.severity === 'medium' ? 'var(--yellow)' : 'var(--lime)';
-      term.innerHTML += '<span class="td"><span style="color:'+color+'">['+t.severity.toUpperCase()+']</span> '+t.name+' ('+t.id+')</span>';
+      term.innerHTML += '<div class="td" style="padding-left:12px;margin:2px 0"><span style="color:'+color+'">['+t.severity.toUpperCase()+']</span> <b>'+t.name+'</b> <span style="color:var(--t3)">('+t.id+')</span></div>';
     });
-    term.innerHTML += '<span class="td" style="color:var(--cyan)">... view full list in Nuclei Templates tab</span>';
+    term.innerHTML += '<div class="td" style="color:var(--cyan);margin-top:6px">... view full list in Nuclei Templates tab</div>';
     showToast('Templates loaded!');
   }).catch(function(e){
-    term.innerHTML += '<span class="td" style="color:var(--red)">Error: '+e.message+'</span>';
+    term.innerHTML += '<div class="td" style="color:var(--red)">Error: '+e.message+'</div>';
   });
 }
 
@@ -1512,6 +1627,61 @@ function autoLogVuln(i){
   // Auto-trigger duplicate check
   setTimeout(function(){ analyzeDuplicateRisk(); }, 500);
   showToast('Recon finding auto-loaded! Click "Check for Semantic Duplicates" to analyze.');
+}
+
+function autoLogAllFindings(domain, vulns, cves) {
+  if(!domain) return;
+  var logged = 0, skipped = 0;
+  var promises = [];
+  // Log vuln suggestions
+  (vulns || []).forEach(function(v) {
+    var payload = {
+      vuln_type: v.title || v.type || 'Unknown',
+      severity: (v.severity || 'M')[0].toUpperCase(),
+      program_name: 'Auto-Logged (Recon)',
+      target_domain: domain,
+      affected_url: v.payload || ('https://' + domain + '/'),
+      description: v.description || '',
+      steps_to_reproduce: '1. Recon on ' + domain + '\n2. Type: ' + (v.title || v.type) + '\n3. Validate manually',
+      impact: 'Potential ' + (v.title || v.type) + ' vulnerability'
+    };
+    promises.push(
+      api('POST','/findings', payload).then(function(r) {
+        logged++;
+      }).catch(function(e) {
+        skipped++;
+      })
+    );
+  });
+  // Log CVEs
+  (cves || []).forEach(function(c) {
+    var payload = {
+      vuln_type: c.id || 'CVE',
+      severity: (c.severity || 'M')[0].toUpperCase(),
+      program_name: 'Auto-Logged (Recon)',
+      target_domain: domain,
+      affected_url: 'https://' + domain + '/',
+      description: c.description || c.id || '',
+      steps_to_reproduce: 'CVE in stack: ' + (c.target || 'unknown component'),
+      impact: c.description || 'Known CVE detected in technology stack'
+    };
+    promises.push(
+      api('POST','/findings', payload).then(function(r) {
+        logged++;
+      }).catch(function(e) {
+        skipped++;
+      })
+    );
+  });
+  Promise.all(promises).then(function() {
+    if(logged > 0) {
+      showToast('Auto-logged ' + logged + ' finding' + (logged > 1 ? 's' : '') + ' to Findings.');
+    }
+    if(skipped > 0) {
+      showToast(skipped + ' finding' + (skipped > 1 ? 's' : '') + ' failed to log.', 'err');
+    }
+    loadFindings();
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -1618,7 +1788,7 @@ function apiSubmitRep(e){
 
 
 // ──────────────────────────────────────────────────────────────────────
-// LEARNING PATHS — VIDEO COURSES (GOD MODE ADDITION)
+// LEARNING PATHS — VIDEO COURSES (AI ADDITION)
 // ──────────────────────────────────────────────────────────────────────
 var COURSES = [
   {id:'portswigger',icon:'🎓',platform:'PortSwigger Web Security Academy',title:'Web Security Fundamentals & Labs',desc:'The gold standard textbook-style learning platform. Covers all OWASP Top 10 vulnerabilities with interactive labs. Free and used by professional penetration testers worldwide.',tags:['SQLi','XSS','CSRF','SSRF','OAuth'],level:'beginner',duration:1800,url:'https://portswigger.net/web-security'},
@@ -1792,7 +1962,7 @@ function syncPacks(){
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// INTEGRATIONS / GOD MODE HUB
+// INTEGRATIONS / AI HUB
 // ──────────────────────────────────────────────────────────────────────
 var PLATFORMS = [
   {id:'hackerone', name:'HackerOne', icon:'⚔️', color:'var(--red)', desc:'The largest bug bounty platform. 3,000+ programs, USD payouts, private invitations for top hunters.', placeholder:'h1_your-username:api-token-xxxx'},
@@ -1885,7 +2055,8 @@ function renderIntProgs() {
   var PICO={U:{bg:'rgba(180,240,66,.1)',c:'var(--lime)'},G:{bg:'rgba(180,240,66,.1)',c:'var(--lime)'},S:{bg:'rgba(255,128,64,.1)',c:'var(--orange)'},Y:{bg:'rgba(255,201,68,.1)',c:'var(--yellow)'},C:{bg:'rgba(53,232,196,.1)',c:'var(--cyan)'},I:{bg:'rgba(155,109,255,.1)',c:'var(--purple)'}};
   grid.innerHTML = demos.map(function(p){
     var k=p.name[0]; var ico=PICO[k]||{bg:'var(--bg3)',c:'var(--txt)'};
-    return '<div class="pcard" onclick="pickP(this)"><div class="pctop"><div class="pchead"><div class="pcico" style="background:'+ico.bg+';color:'+ico.c+'">'+k+'</div><div><div class="pcname">'+p.name+'</div><div class="pcplat">'+p.platform+' — PRIVATE</div></div><span class="sv" style="margin-left:auto;background:var(--pd);color:var(--purple);border:1px solid rgba(155,109,255,.25)">INVITE</span></div><div class="paygrid"><div class="payc"><div class="payt">CRITICAL</div><div class="paya" style="color:var(--red)">'+(p.payout_critical||'-')+'</div></div><div class="payc"><div class="payt">HIGH</div><div class="paya" style="color:var(--orange)">'+(p.payout_high||'-')+'</div></div><div class="payc"><div class="payt">MEDIUM</div><div class="paya" style="color:var(--yellow)">'+(p.payout_medium||'-')+'</div></div><div class="payc"><div class="payt">LOW</div><div class="paya" style="color:var(--lime)">'+(p.payout_low||'-')+'</div></div></div></div><div class="pcfoot"><div class="resp">Avg '+p.response_days+'-day response</div><button class="btn blime bsm" onclick="event.stopPropagation();rjump(\''+p.domain+'\')">Recon</button></div></div>';
+    var scopePipe2=(p.scope_in||[]).join('|');
+    return '<div class="pcard" onclick="pickP(this)"><div class="pctop"><div class="pchead"><div class="pcico" style="background:'+ico.bg+';color:'+ico.c+'">'+k+'</div><div><div class="pcname">'+p.name+'</div><div class="pcplat">'+p.platform+' — PRIVATE</div></div><span class="sv" style="margin-left:auto;background:var(--pd);color:var(--purple);border:1px solid rgba(155,109,255,.25)">INVITE</span></div><div class="paygrid"><div class="payc"><div class="payt">CRITICAL</div><div class="paya" style="color:var(--red)">'+(p.payout_critical||'-')+'</div></div><div class="payc"><div class="payt">HIGH</div><div class="paya" style="color:var(--orange)">'+(p.payout_high||'-')+'</div></div><div class="payc"><div class="payt">MEDIUM</div><div class="paya" style="color:var(--yellow)">'+(p.payout_medium||'-')+'</div></div><div class="payc"><div class="payt">LOW</div><div class="paya" style="color:var(--lime)">'+(p.payout_low||'-')+'</div></div></div></div><div class="pcfoot"><div class="resp">Avg '+p.response_days+'-day response</div><button class="btn blime bsm" onclick="event.stopPropagation();rjump(\''+p.domain+'\',\''+scopePipe2+'\',\''+(p.target_domain||'')+'\')">Recon</button></div></div>';
   }).join('');
 }
 function updateConnUI(){renderIntegrations();}
@@ -2129,12 +2300,12 @@ function loadReputation(){
   }).catch(function(e){ console.warn('Rep load failed:', e); });
 }
 function loadLeaderboard(){
-    api('GET','/api/leaderboard').then(function(r){
+    api('GET','/leaderboard').then(function(r){
         renderLeaderboard(r.rows);
     }).catch(function(e){ renderLeaderboard(null); });
 }
 function loadLearning(){
-    api('GET','/api/learning').then(function(r){
+    api('GET','/learning').then(function(r){
         var list = document.getElementById('learning-list');
         if(!list) return;
         if(!r.resources || !r.resources.length){
@@ -2150,7 +2321,7 @@ function loadLearning(){
     });
 }
 function loadNucleiTemplates(){
-    api('GET','/api/nuclei/templates').then(function(r){
+  api('GET','/nuclei/templates').then(function(r){
         var critical = document.getElementById('nuclei-critical');
         var high = document.getElementById('nuclei-high');
         var medium = document.getElementById('nuclei-medium');
@@ -2186,7 +2357,7 @@ function runMLPredict(){
         return;
     }
     var techStack = tech.split(',').map(function(t){ return t.trim(); });
-    api('POST','/api/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
+  api('POST','/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
         var el = document.getElementById('ml-results');
         if(!el) return;
         el.innerHTML = r.predictions.map(function(p){
@@ -2198,7 +2369,7 @@ function runMLPredict(){
     });
 }
 function loadPayouts(){
-    api('GET','/api/payout/summary').then(function(r){
+    api('GET','/payout/summary').then(function(r){
         renderPayouts(r.history || []);
     }).catch(function(e){ renderPayouts([]); });
 }
@@ -2220,7 +2391,7 @@ function addPayout(){
         showToast('Please select finding and enter amount', 'err');
         return;
     }
-    api('POST','/api/findings/'+finding_id+'/payout',{amount:amount,currency:document.getElementById('pf-currency').value,platform:document.getElementById('pf-platform').value})
+    api('POST','/findings/'+finding_id+'/payout',{amount:amount,currency:document.getElementById('pf-currency').value,platform:document.getElementById('pf-platform').value})
     .then(function(r){
         showToast('Payout added!');
         loadPayouts();
@@ -2476,7 +2647,7 @@ function suggestLearning(vulnType){
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// GODMODE LAB LOGIC
+// AI LAB LOGIC
 // ──────────────────────────────────────────────────────────────────────
 function glabAnalyze(type){
   var raw = document.getElementById('glab-raw').value.trim();
@@ -2502,6 +2673,9 @@ function glabAnalyze(type){
     if(type === 'api' || type === 'logic'){
         api('POST', '/analyze/visual-flow', {vulnerability_detail: text}).then(function(flowData){
             renderVisualFlow(flowData);
+            if(flowData.reasoning){
+                out.innerHTML += '<div style="margin-top:15px;padding:12px;background:var(--bg2);border:1px solid var(--bd);border-radius:8px"><div class="sl" style="color:var(--cy);margin-bottom:6px">AI Attack Flow Reasoning</div><div style="font-size:12px;line-height:1.5;color:var(--t2)">'+flowData.reasoning+'</div></div>';
+            }
         });
     }
 
@@ -2519,10 +2693,23 @@ function glabAnalyze(type){
 
 function renderVisualFlow(data){
     var canvas = document.getElementById('vflow-canvas');
-    if(!canvas || !data.visual_flow) return;
-    
+    if(!canvas) return;
     canvas.innerHTML = '';
-    data.visual_flow.forEach(function(step, i){
+    
+    var steps = data.visual_flow;
+    if(!steps && data.nodes && data.nodes.length){
+        steps = data.nodes.map(function(n, i) {
+            var isLast = (i === data.nodes.length - 1);
+            return {
+                actor: n.label || n.id,
+                action: n.type || 'Process',
+                result: isLast ? (n.type === 'Vulnerability' ? 'Exploitable sink detected' : 'End of chain') : '→ ' + (data.links[i] ? (data.links[i].to || 'next') : 'next'),
+                status: isLast && n.type === 'Vulnerability' ? 'vulnerable' : 'safe'
+            };
+        });
+    }
+    if(!steps || !steps.length) return;
+    steps.forEach(function(step, i){
         var node = document.createElement('div');
         node.className = 'flow-step';
         
@@ -2536,7 +2723,7 @@ function renderVisualFlow(data){
             </div>
         `;
         
-        if(i < data.visual_flow.length - 1){
+        if(i < steps.length - 1){
             nodeHtml += '<div class="flow-arrow"></div>';
         }
         
