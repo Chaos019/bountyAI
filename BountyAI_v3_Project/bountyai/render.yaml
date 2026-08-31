@@ -2,8 +2,12 @@ services:
   - type: web
     name: bountyai
     runtime: python
-    buildCommand: echo "No build needed — pure stdlib"
-    startCommand: python server/server.py
+    buildCommand: >
+      curl -sL https://github.com/projectdiscovery/nuclei/releases/download/v3.1.1/nuclei_3.1.1_linux_amd64.zip -o /tmp/nuclei.zip &&
+      unzip -o /tmp/nuclei.zip nuclei -d BountyAI_v3_Project/bountyai/server/ &&
+      chmod +x BountyAI_v3_Project/bountyai/server/nuclei &&
+      rm /tmp/nuclei.zip
+    startCommand: python BountyAI_v3_Project/bountyai/server/server.py
     envVars:
       - key: JWT_SECRET
         generateValue: true

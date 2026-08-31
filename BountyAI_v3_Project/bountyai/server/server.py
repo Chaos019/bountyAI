@@ -688,7 +688,7 @@ def list_nuclei_tags():
 
 def run_nuclei_scan(domain, severity_filter=None, tags_filter=None, template_id=None, timeout_sec=180):
     """Run nuclei against a target. Returns structured results."""
-    nuclei_bin = shutil.which("nuclei") or str(ROOT / "nuclei.exe")
+    nuclei_bin = shutil.which("nuclei") or str(ROOT / "nuclei") or str(ROOT / "nuclei.exe")
     if not nuclei_bin or not os.path.isfile(nuclei_bin):
         return {"error": "nuclei binary not found", "results": [], "count": 0}
 
@@ -917,7 +917,7 @@ def run_recon(domain):
     domain = domain.lower().strip().replace("https://","").replace("http://","").split("/")[0]
     start = time.time()
     has_subfinder = shutil.which("subfinder")
-    has_nuclei = shutil.which("nuclei") or (ROOT / "nuclei.exe").is_file()
+    has_nuclei = shutil.which("nuclei") or (ROOT / "nuclei").is_file() or (ROOT / "nuclei.exe").is_file()
     has_httpx = shutil.which("httpx")
 
     subs, tech, cves, sources = [], [], [], []
