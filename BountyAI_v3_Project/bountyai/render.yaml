@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: bountyai
+    runtime: python
+    buildCommand: echo "No build needed — pure stdlib"
+    startCommand: python server/server.py
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+    healthCheckPath: /api/health

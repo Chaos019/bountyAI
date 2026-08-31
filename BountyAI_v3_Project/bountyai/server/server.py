@@ -56,9 +56,16 @@ GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN", "")
 GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 PORT           = int(os.getenv("PORT", "5000"))
+RENDER_URL     = os.getenv("RENDER_EXTERNAL_URL", "")  # auto-set by Render.com
 NUCLEI_TEMPLATES_DIR = ROOT / "nuclei-templates"
 
 def has_key(k): return bool(k) and not k.startswith("your_")
+
+def get_base_url():
+    """Return the public base URL — Render external URL or localhost fallback."""
+    if RENDER_URL:
+        return RENDER_URL.rstrip("/")
+    return f"http://localhost:{PORT}"
 
 # ── JWT & AUTH (pure stdlib, zero dependencies) ───────────────
 JWT_SECRET = os.getenv("JWT_SECRET", "bountyai-secret-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:16])
@@ -1905,7 +1912,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             return {"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID env var."}
         qs = urllib.parse.urlencode({
             "client_id": GOOGLE_CLIENT_ID,
-            "redirect_uri": f"http://localhost:{PORT}/api/auth/google/callback",
+            "redirect_uri": f"{get_base_url()}/api/auth/google/callback",
             "response_type": "code",
             "scope": "openid email profile",
             "access_type": "offline",
@@ -1921,7 +1928,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if not code:
             return self.send_html("<script>window.location='/'</script>")
         try:
-            redirect_uri = f"http://localhost:{PORT}/api/auth/google/callback"
+            redirect_uri = f"{get_base_url()}/api/auth/google/callback"
             google_info = google_get_user_info(code, redirect_uri)
             if not google_info or not google_info.get("google_id"):
                 return self.send_html("<script>localStorage.setItem('bountyai_google_error','Failed to verify Google account');window.location='/'</script>")
@@ -2049,10 +2056,12 @@ def main():
     print("  BountyAI v3.0 - Pure Python Bug Bounty Platform")
     print("=" * 62)
     init_db()
+    base = get_base_url()
     print(f"  DB: {DB_PATH.name}")
     print(f"  Port: {PORT}")
-    print(f"  URL:  http://localhost:{PORT}\n")
-    threading.Thread(target=open_browser, daemon=True).start()
+    print(f"  URL:  {base}\n")
+    if not RENDER_URL:
+        threading.Thread(target=open_browser, daemon=True).start()
     class ReusableTCPServer(socketserver.ThreadingTCPServer):
         allow_reuse_address = True
     with ReusableTCPServer(("", PORT), BountyHandler) as srv:

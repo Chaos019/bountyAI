@@ -1,0 +1,2 @@
+# BountyAI v3 — pure Python stdlib, zero dependencies
+# This file is required by Render.com's Python runtime detection.

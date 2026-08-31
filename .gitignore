@@ -34,3 +34,4 @@ nuclei-templates/
 
 # Server logs
 *.txt
+!requirements.txt
