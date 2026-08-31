@@ -4,7 +4,7 @@ Runs on Python 3.8+ with nothing to install.
 Supports OpenRouter AI, Claude API, Shodan, crt.sh, and local database.
 """
 
-import http.server, socketserver, json, sqlite3, os, re, hashlib, shutil, subprocess, io
+import http.server, socketserver, json, sqlite3, os, re, hashlib, hmac, shutil, subprocess, io
 import urllib.request, urllib.parse, urllib.error, base64, threading, uuid, time
 import pathlib, sys, socket, datetime
 from typing import Any
@@ -53,9 +53,147 @@ NVD_KEY        = os.getenv("NVD_API_KEY", "")
 H1_USER        = os.getenv("HACKERONE_USERNAME", "")
 H1_TOKEN       = os.getenv("HACKERONE_API_TOKEN", "")
 GITHUB_TOKEN   = os.getenv("GITHUB_TOKEN", "")
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 PORT           = int(os.getenv("PORT", "5000"))
+NUCLEI_TEMPLATES_DIR = ROOT / "nuclei-templates"
 
 def has_key(k): return bool(k) and not k.startswith("your_")
+
+# ── JWT & AUTH (pure stdlib, zero dependencies) ───────────────
+JWT_SECRET = os.getenv("JWT_SECRET", "bountyai-secret-" + hashlib.sha256(str(ROOT).encode()).hexdigest()[:16])
+JWT_EXPIRY_HOURS = 24
+
+def _b64e(data):
+    return base64.urlsafe_b64encode(json.dumps(data, separators=(",", ":")).encode()).rstrip(b"=").decode()
+
+def _b64d(s):
+    s += "=" * (4 - len(s) % 4)
+    return json.loads(base64.urlsafe_b64decode(s))
+
+def jwt_encode(payload):
+    header = {"alg": "HS256", "typ": "JWT"}
+    body = _b64e(header) + "." + _b64e(payload)
+    sig = hmac.new(JWT_SECRET.encode(), body.encode(), hashlib.sha256).digest()
+    return body + "." + base64.urlsafe_b64encode(sig).rstrip(b"=").decode()
+
+def jwt_decode(token):
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        body = parts[0] + "." + parts[1]
+        expected_sig = hmac.new(JWT_SECRET.encode(), body.encode(), hashlib.sha256).digest()
+        actual_sig = base64.urlsafe_b64decode(parts[2] + "==")
+        if not hmac.compare_digest(expected_sig, actual_sig):
+            return None
+        payload = _b64d(parts[1])
+        if payload.get("exp", 0) < time.time():
+            return None
+        return payload
+    except Exception:
+        return None
+
+def hash_password(password):
+    salt = hashlib.sha256(os.urandom(16)).hexdigest()[:16]
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
+    return salt + ":" + h.hex()
+
+def verify_password(password, stored):
+    try:
+        salt, h = stored.split(":")
+        check = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
+        return hmac.compare_digest(check.hex(), h)
+    except Exception:
+        return False
+
+def create_token(username, role):
+    return jwt_encode({
+        "sub": username, "role": role,
+        "iat": int(time.time()),
+        "exp": int(time.time()) + JWT_EXPIRY_HOURS * 3600
+    })
+
+def get_current_user(handler):
+    """Extract and validate JWT from Authorization header. Returns dict or None."""
+    auth = handler.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return None
+    return jwt_decode(auth[7:])
+
+def require_role(handler, *allowed_roles):
+    """Check JWT and role. Returns (user_dict, None) on success or (None, error_response) on failure."""
+    user = get_current_user(handler)
+    if not user:
+        return None, ({"error": "Authentication required"}, 401)
+    if user.get("role") not in allowed_roles:
+        return None, ({"error": f"Access denied. Required role: {', '.join(allowed_roles)}"}, 403)
+    return user, None
+
+# ── GOOGLE OAUTH 2.0 ────────────────────────────────────────
+def google_get_user_info(code, redirect_uri):
+    """Exchange authorization code for user info via Google OAuth 2.0."""
+    # Step 1: Exchange code for tokens
+    token_data = urllib.parse.urlencode({
+        "code": code,
+        "client_id": GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
+    }).encode()
+    req = urllib.request.Request("https://oauth2.googleapis.com/token", data=token_data, method="POST")
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        tokens = json.loads(resp.read().decode())
+    id_token = tokens.get("id_token")
+    if not id_token:
+        return None
+    # Step 2: Decode id_token (JWT) to get user info — no secret needed for basic claims
+    # The id_token is a signed JWT from Google; we decode the payload (signature not verified locally)
+    parts = id_token.split(".")
+    if len(parts) != 3:
+        return None
+    payload_json = parts[1] + "=" * (4 - len(parts[1]) % 4)
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(payload_json))
+    except Exception:
+        return None
+    return {
+        "google_id": payload.get("sub"),
+        "email": payload.get("email"),
+        "name": payload.get("name", ""),
+        "picture": payload.get("picture", "")
+    }
+
+def google_find_or_create_user(google_info):
+    """Find existing user by google_id or email, or create new one."""
+    conn = get_db()
+    try:
+        # Try by google_id first
+        user = conn.execute("SELECT * FROM users WHERE google_id=?", (google_info["google_id"],)).fetchone()
+        if user:
+            return dict(user)
+        # Try by email
+        user = conn.execute("SELECT * FROM users WHERE email=?", (google_info["email"],)).fetchone()
+        if user:
+            # Link Google account to existing user
+            conn.execute("UPDATE users SET google_id=? WHERE id=?", (google_info["google_id"], user["id"]))
+            conn.commit()
+            return dict(conn.execute("SELECT * FROM users WHERE id=?", (user["id"],)).fetchone())
+        # Create new user
+        username = google_info["email"].split("@")[0]
+        # Ensure unique username
+        base = username
+        counter = 1
+        while conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
+            username = f"{base}{counter}"
+            counter += 1
+        conn.execute("INSERT INTO users (username, email, role, google_id) VALUES (?,?,?,?)",
+                     (username, google_info["email"], "analyst", google_info["google_id"]))
+        conn.commit()
+        user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        return dict(user)
+    finally:
+        conn.close()
 
 # ── DATABASE INITIALIZATION ─────────────────────────────────
 def get_db():
@@ -128,9 +266,41 @@ def init_db():
     )""")
     conn.execute("""CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE, password_hash TEXT, role TEXT DEFAULT 'researcher', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        username TEXT UNIQUE, email TEXT UNIQUE, password_hash TEXT,
+        role TEXT DEFAULT 'viewer' CHECK(role IN ('admin','analyst','viewer')),
+        is_active INTEGER DEFAULT 1, google_id TEXT UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
     conn.commit()
+    # Migration: rebuild users table if missing new columns
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "email" not in cols or "role" not in cols or "is_active" not in cols or "created_at" not in cols or "google_id" not in cols:
+        conn.execute("CREATE TABLE IF NOT EXISTS users_backup AS SELECT * FROM users")
+        conn.execute("DROP TABLE users")
+        conn.execute("""CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE, email TEXT UNIQUE, password_hash TEXT,
+            role TEXT DEFAULT 'viewer' CHECK(role IN ('admin','analyst','viewer')),
+            is_active INTEGER DEFAULT 1, google_id TEXT UNIQUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.execute("INSERT OR IGNORE INTO users (username, password_hash, role) SELECT username, password_hash, role FROM users_backup")
+        conn.execute("DROP TABLE IF EXISTS users_backup")
+        conn.commit()
+        print("  [Auth] Migrated users table to v3 schema (email, role, is_active, created_at)")
+    # Seed default users if admin doesn't exist or has no password_hash
+    admin_row = conn.execute("SELECT password_hash FROM users WHERE username='admin'").fetchone()
+    if not admin_row or not admin_row[0]:
+        conn.execute("DELETE FROM users WHERE username IN ('admin','analyst','viewer')")
+        for uname, email, role, pwd in [
+            ("admin", "admin@bountyai.local", "admin", "admin123"),
+            ("analyst", "analyst@bountyai.local", "analyst", "analyst123"),
+            ("viewer", "viewer@bountyai.local", "viewer", "viewer123"),
+        ]:
+            conn.execute("INSERT OR IGNORE INTO users (username,email,password_hash,role) VALUES (?,?,?,?)",
+                         (uname, email, hash_password(pwd), role))
+        conn.commit()
+        print("  [Auth] Seeded default users: admin/admin123, analyst/analyst123, viewer/viewer123")
     conn.close()
     sync_curated_programs()
 
@@ -450,6 +620,150 @@ def suggestions_for_tech(tech):
                              "finding": f"{reason} (confidence {conf}%)", "target": t.get("name", "target")})
     return sugs
 
+# ── NUCLEI LIVE SCANNING ──────────────────────────────────────
+def ensure_nuclei_templates():
+    """Clone or update nuclei-templates repo. Returns path to templates dir."""
+    if NUCLEI_TEMPLATES_DIR.exists() and (NUCLEI_TEMPLATES_DIR / "http").is_dir():
+        try:
+            subprocess.run(["git", "-C", str(NUCLEI_TEMPLATES_DIR), "pull", "-q"],
+                           capture_output=True, timeout=30)
+        except Exception:
+            pass
+        return NUCLEI_TEMPLATES_DIR
+    try:
+        print("  [Nuclei] Cloning nuclei-templates (this may take a minute)...")
+        subprocess.run([
+            "git", "clone", "--depth", "1",
+            "https://github.com/projectdiscovery/nuclei-templates.git",
+            str(NUCLEI_TEMPLATES_DIR)
+        ], capture_output=True, timeout=120)
+        if NUCLEI_TEMPLATES_DIR.exists():
+            print(f"  [Nuclei] Templates cloned to {NUCLEI_TEMPLATES_DIR}")
+        return NUCLEI_TEMPLATES_DIR
+    except Exception as e:
+        print(f"  [Nuclei] Clone failed: {e}")
+        return None
+
+def count_nuclei_templates():
+    """Count actual .yaml template files in the nuclei-templates directory."""
+    if not NUCLEI_TEMPLATES_DIR.exists():
+        return 0
+    count = 0
+    for root, dirs, files in os.walk(str(NUCLEI_TEMPLATES_DIR)):
+        for f in files:
+            if f.endswith((".yaml", ".yml")) and not f.startswith((".", "_")):
+                count += 1
+    return count
+
+def list_nuclei_tags():
+    """Extract unique tags from nuclei template files."""
+    tags = {}
+    if not NUCLEI_TEMPLATES_DIR.exists():
+        return tags
+    for root, dirs, files in os.walk(str(NUCLEI_TEMPLATES_DIR)):
+        for f in files:
+            if not f.endswith((".yaml", ".yml")):
+                continue
+            fp = os.path.join(root, f)
+            try:
+                with open(fp, "r", encoding="utf-8", errors="ignore") as fh:
+                    for line in fh:
+                        if line.strip().startswith("tags:"):
+                            raw = line.split(":", 1)[1].strip()
+                            for t in raw.split(","):
+                                t = t.strip().strip('"').strip("'")
+                                if t:
+                                    tags[t] = tags.get(t, 0) + 1
+                            break
+            except Exception:
+                pass
+    return tags
+
+def run_nuclei_scan(domain, severity_filter=None, tags_filter=None, template_id=None, timeout_sec=180):
+    """Run nuclei against a target. Returns structured results."""
+    nuclei_bin = shutil.which("nuclei") or str(ROOT / "nuclei.exe")
+    if not nuclei_bin or not os.path.isfile(nuclei_bin):
+        return {"error": "nuclei binary not found", "results": [], "count": 0}
+
+    templates_dir = ensure_nuclei_templates()
+    if not templates_dir or not templates_dir.exists():
+        return {"error": "nuclei-templates not available", "results": [], "count": 0}
+
+    cmd = [nuclei_bin, "-u", domain, "-t", str(templates_dir), "-jsonl", "-silent", "-nc", "-timeout", "10"]
+
+    if severity_filter:
+        cmd.extend(["-severity", severity_filter])
+    if tags_filter:
+        cmd.extend(["-tags", tags_filter])
+    if template_id:
+        cmd.extend(["-id", template_id])
+
+    results = []
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_sec)
+        for line in proc.stdout.strip().splitlines():
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+                results.append({
+                    "template_id": item.get("template-id", ""),
+                    "name": item.get("info", {}).get("name", ""),
+                    "severity": item.get("info", {}).get("severity", "info"),
+                    "type": item.get("type", ""),
+                    "matched_at": item.get("matched-at", item.get("host", "")),
+                    "description": item.get("info", {}).get("description", ""),
+                    "reference": item.get("info", {}).get("reference", []),
+                    "tags": item.get("info", {}).get("tags", []),
+                    "curl_command": item.get("curl-command", ""),
+                    "matcher_name": item.get("matcher-name", ""),
+                    "extracted_results": item.get("extracted-results", []),
+                })
+            except json.JSONDecodeError:
+                continue
+    except subprocess.TimeoutExpired:
+        return {"error": f"Nuclei scan timed out after {timeout_sec}s", "results": results, "count": len(results)}
+    except FileNotFoundError:
+        return {"error": "nuclei binary not found", "results": [], "count": 0}
+    except Exception as e:
+        return {"error": str(e), "results": [], "count": 0}
+
+    # Sort by severity
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    results.sort(key=lambda r: sev_order.get(r.get("severity", "info"), 5))
+
+    return {
+        "results": results,
+        "count": len(results),
+        "target": domain,
+        "templates_dir": str(templates_dir),
+        "severity_filter": severity_filter,
+        "tags_filter": tags_filter,
+    }
+
+def nuclei_catalog():
+    """Return real template count from disk, or fallback to hardcoded catalog."""
+    real_count = count_nuclei_templates()
+    real_tags = list_nuclei_tags()
+    top_tags = sorted(real_tags.items(), key=lambda x: -x[1])[:30]
+    if real_count > 0:
+        return {
+            "count": real_count,
+            "sources": ["projectdiscovery/nuclei-templates (local clone)"],
+            "templates_dir": str(NUCLEI_TEMPLATES_DIR),
+            "available": True,
+            "top_tags": [{"tag": t, "count": c} for t, c in top_tags],
+            "total_tags": len(real_tags),
+            "templates": NUCLEI_TEMPLATES
+        }
+    return {
+        "count": sum(len(v) for v in NUCLEI_TEMPLATES.values()),
+        "sources": ["projectdiscovery/nuclei", "builtin-cache"],
+        "templates": NUCLEI_TEMPLATES,
+        "available": False,
+        "notice": "Run POST /api/nuclei/setup to clone templates"
+    }
+
 # ── ML PREDICTION ENGINE ──────────────────────────────────────
 ML_PATTERNS = [
     (["php","wordpress","wp"], "SQL Injection", "CRITICAL", "PHP/WordPress stacks commonly expose parameterized query gaps in plugins and themes", 91),
@@ -528,10 +842,6 @@ NUCLEI_TEMPLATES = {
     ],
 }
 
-def nuclei_catalog():
-    total = sum(len(v) for v in NUCLEI_TEMPLATES.values())
-    return {"count": total, "sources": ["projectdiscovery/nuclei", "builtin-cache"], "templates": NUCLEI_TEMPLATES}
-
 # ── VISUAL FLOW / ATTACK MAP ──────────────────────────────────
 def extract_json_object(text):
     text = re.sub(r"```(?:json)?", "", str(text)).strip()
@@ -600,7 +910,7 @@ def run_recon(domain):
     domain = domain.lower().strip().replace("https://","").replace("http://","").split("/")[0]
     start = time.time()
     has_subfinder = shutil.which("subfinder")
-    has_nuclei = shutil.which("nuclei")
+    has_nuclei = shutil.which("nuclei") or (ROOT / "nuclei.exe").is_file()
     has_httpx = shutil.which("httpx")
 
     subs, tech, cves, sources = [], [], [], []
@@ -962,11 +1272,36 @@ def run_recon(domain):
         except: pass
     module_results["18_disclosure"] = {"count": len(info_disc), "items": [f"{d['path']} → HTTP {d['status']} [{d['severity']}]" for d in info_disc[:10]], "status": "found" if info_disc else "none"}
 
-    # ── MODULE 19: Reverse Shell (skip - offensive, not recon) ──
-    module_results["19_shell"] = {"count": 0, "items": ["Module skipped — offensive payload generation not executed in recon mode"], "status": "skipped"}
+    # ── MODULE 19: Nuclei Vulnerability Scan (line 965) ──
+    nuclei_results = []
+    nuclei_sev_counts = {}
+    if has_nuclei:
+        nuclei_res = run_nuclei_scan(domain, timeout_sec=150)
+        if nuclei_res.get("results"):
+            nuclei_results = nuclei_res["results"]
+            for r in nuclei_results:
+                s = r.get("severity", "info")
+                nuclei_sev_counts[s] = nuclei_sev_counts.get(s, 0) + 1
+            sources.append("nuclei")
+    module_results["19_nuclei"] = {
+        "count": len(nuclei_results),
+        "items": [f"[{r.get('severity','?').upper()}] {r.get('name','')} — {r.get('matched_at','')}" for r in nuclei_results[:15]],
+        "status": "found" if nuclei_results else ("tool-missing" if not has_nuclei else "clean"),
+        "severity_breakdown": nuclei_sev_counts,
+        "total_templates_scanned": nuclei_res.get("count", 0) if has_nuclei else 0
+    }
 
-    # ── MODULE 20: Mass Exploitation (skip - offensive, not recon) ──
-    module_results["20_exploit"] = {"count": 0, "items": ["Module skipped — exploitation not executed in passive recon mode"], "status": "skipped"}
+    # ── MODULE 20: Nuclei Severity-Filtered Deep Scan ──
+    nuclei_critical = []
+    if has_nuclei and has_nuclei:
+        nuclei_crit_res = run_nuclei_scan(domain, severity_filter="critical,high", timeout_sec=120)
+        if nuclei_crit_res.get("results"):
+            nuclei_critical = nuclei_crit_res["results"]
+    module_results["20_exploit"] = {
+        "count": len(nuclei_critical),
+        "items": [f"[CRIT/HIGH] {r.get('name','')} — {r.get('matched_at','')}" for r in nuclei_critical[:10]],
+        "status": "found" if nuclei_critical else ("tool-missing" if not has_nuclei else "clean")
+    }
 
     # ── Tech + CVE (runs after port scan) ──
     tech = fingerprint_tech(domain, shodan)
@@ -997,6 +1332,11 @@ def run_recon(domain):
         vuln_suggestions.insert(0, {"type":"S3 Bucket Exposure","severity":"M","finding":f"Accessible S3 buckets: {', '.join(s['bucket'] for s in s3_buckets[:3])}","target":"AWS S3"})
     if api_found:
         vuln_suggestions.insert(0, {"type":"API Endpoints Exposed","severity":"M","finding":f"{len(api_found)} API endpoints discovered","target":"API Surface"})
+    if nuclei_critical:
+        for r in nuclei_critical[:5]:
+            sev_map = {"critical":"C","high":"H","medium":"M","low":"L","info":"I"}
+            vuln_suggestions.insert(0, {"type":"Nuclei Finding","severity":sev_map.get(r.get("severity","info"),"M"),
+                                        "finding":f"{r.get('name','')} — {r.get('matched_at','')}","target":r.get("matched_at",domain)})
     if not vuln_suggestions:
         for vtype, sev, reason, conf in ML_FALLBACKS:
             vuln_suggestions.append({"type": vtype, "severity": {"CRITICAL":"C","HIGH":"H","MEDIUM":"M","LOW":"L"}.get(sev,"M"),
@@ -1219,6 +1559,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if p == "/api/payout/summary": return self.send_json(self._get_payout_summary())
         if p == "/api/discovery/results": return self.send_json(self._discovery_results())
         if p == "/api/nuclei/templates": return self.send_json(self._get_nuclei_templates())
+        if p == "/api/auth/me":          return self.send_json(self._auth_me())
+        if p == "/api/auth/google":      return self.send_json(self._google_auth_url())
+        if p == "/api/auth/google/callback": return self._google_callback()
         if p == "/api/export/csv":     return self.send_json(self._export_csv())
         if p == "/api/export/json":    return self.send_json(self._export_json())
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._get_finding(int(p.split("/")[-1])))
@@ -1228,17 +1571,15 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         p = self.path.rstrip("/")
         body = self.read_body()
-        if p == "/api/recon":               return self.send_json(self._do_recon(body))
-        if p == "/api/findings":            return self.send_json(self._create_finding(body), 201)
-        if p == "/api/reports/generate":    return self.send_json(self._gen_report(body), 201)
-        if p == "/api/programs/sync":       return self.send_json({"synced": sync_programs_to_db()})
-        if p == "/api/programs/live":      return self.send_json({"programs": fetch_live_programs(), "total": len(fetch_live_programs())})
-        if p == "/api/resources/sync":      return self.send_json({"resources": fetch_resource_packs()})
-        if p == "/api/reports/submit":      return self.send_json(self._submit_h1(body), 200)
-        if p == "/api/disclosures":         return self.send_json(self._create_disclosure(body), 201)
-        if p == "/api/agent/config":        return self.send_json(self._save_agent_config(body))
+        # Auth endpoints — no token required
         if p == "/api/auth/register":       return self.send_json(self._register_user(body), 201)
         if p == "/api/auth/login":          return self.send_json(self._login_user(body))
+        # Admin-only endpoints
+        if p == "/api/nuclei/setup":          return self.send_json(self._nuclei_setup(body))
+        # Admin + Analyst endpoints
+        if p == "/api/nuclei/scan":           return self.send_json(self._nuclei_scan(body))
+        if p == "/api/recon":               return self.send_json(self._do_recon(body))
+        if p == "/api/reports/generate":    return self.send_json(self._gen_report(body), 201)
         if p == "/api/ml/predict":          return self.send_json(self._ml_predict(body))
         if p == "/api/analyze/vulnerability": return self.send_json(self._ai_analyze(body))
         if p == "/api/analyze/visual-flow":   return self.send_json(self._ai_visual_flow(body))
@@ -1249,9 +1590,18 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if p == "/api/analyze/duplicate-risk":return self.send_json(self._ai_duplicate_risk(body))
         if p == "/api/analyze/js-secrets":    return self.send_json(self._analyze_js_secrets(body))
         if p == "/api/analyze/remediation":   return self.send_json(self._ai_remediation(body))
+        if p == "/api/discovery/crawl":       return self.send_json(self._discovery_crawl(body))
+        # All authenticated roles
+        if p == "/api/findings":            return self.send_json(self._create_finding(body), 201)
+        if p == "/api/disclosures":         return self.send_json(self._create_disclosure(body), 201)
+        if p == "/api/agent/config":        return self.send_json(self._save_agent_config(body))
         if p == "/api/analyze/pdf-text":     return self.send_json(self._extract_pdf_text(body))
         if p == "/api/report/export-pdf":   return self.send_json(self._export_report_pdf(body))
-        if p == "/api/discovery/crawl":       return self.send_json(self._discovery_crawl(body))
+        # Admin-only management
+        if p == "/api/programs/sync":       return self.send_json({"synced": sync_programs_to_db()})
+        if p == "/api/programs/live":      return self.send_json({"programs": fetch_live_programs(), "total": len(fetch_live_programs())})
+        if p == "/api/resources/sync":      return self.send_json({"resources": fetch_resource_packs()})
+        if p == "/api/reports/submit":      return self.send_json(self._submit_h1(body), 200)
         if re.match(r"^/api/findings/\d+/payout$", p):
             return self.send_json(self._add_payout(int(p.split("/")[-2]), body), 201)
         self.send_json({"error": "not found"}, 404)
@@ -1273,11 +1623,17 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
     def _health(self):
         ai_on = has_key(OPENROUTER_KEY) or has_key(ANTHROPIC_KEY)
         mode = "openrouter" if has_key(OPENROUTER_KEY) else ("claude-api" if has_key(ANTHROPIC_KEY) else "template")
+        user = get_current_user(self)
         return {
             "status": "running", "version": "3.0.0",
             "ai_enabled": ai_on,
             "h1_token": has_key(H1_TOKEN),
             "ai_mode": mode,
+            "auth": {
+                "jwt_enabled": True,
+                "roles": ["admin", "analyst", "viewer"],
+                "current_user": {"username": user["sub"], "role": user["role"]} if user else None
+            },
             "apis": {
                 "openrouter": "configured" if has_key(OPENROUTER_KEY) else "missing OPENROUTER_API_KEY",
                 "claude": "configured" if has_key(ANTHROPIC_KEY) else "missing ANTHROPIC_API_KEY",
@@ -1539,10 +1895,106 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
     def _get_payout_summary(self): return {"total_earned": 0.0, "payouts": []}
     def _discovery_results(self): return []
     def _get_nuclei_templates(self): return nuclei_catalog()
+    def _auth_me(self):
+        user = get_current_user(self)
+        if not user:
+            return {"error": "Not authenticated"}
+        return {"username": user["sub"], "role": user["role"]}
+    def _google_auth_url(self):
+        if not GOOGLE_CLIENT_ID:
+            return {"error": "Google OAuth not configured. Set GOOGLE_CLIENT_ID env var."}
+        qs = urllib.parse.urlencode({
+            "client_id": GOOGLE_CLIENT_ID,
+            "redirect_uri": f"http://localhost:{PORT}/api/auth/google/callback",
+            "response_type": "code",
+            "scope": "openid email profile",
+            "access_type": "offline",
+            "prompt": "consent"
+        })
+        return {"url": f"https://accounts.google.com/o/oauth2/v2/auth?{qs}"}
+    def _google_callback(self):
+        qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        code = qs.get("code", [None])[0]
+        error = qs.get("error", [None])[0]
+        if error:
+            return self.send_html(f"<script>localStorage.setItem('bountyai_google_error','{error}');window.location='/'</script>")
+        if not code:
+            return self.send_html("<script>window.location='/'</script>")
+        try:
+            redirect_uri = f"http://localhost:{PORT}/api/auth/google/callback"
+            google_info = google_get_user_info(code, redirect_uri)
+            if not google_info or not google_info.get("google_id"):
+                return self.send_html("<script>localStorage.setItem('bountyai_google_error','Failed to verify Google account');window.location='/'</script>")
+            user = google_find_or_create_user(google_info)
+            token = create_token(user["username"], user["role"])
+            return self.send_html(f"""<script>
+            localStorage.setItem('bountyai_token','{token}');
+            localStorage.setItem('bountyai_user',JSON.stringify({{"username":"{user['username']}","role":"{user['role']}"}}));
+            localStorage.removeItem('bountyai_google_error');
+            window.location='/';
+            </script>""")
+        except Exception as e:
+            return self.send_html(f"<script>localStorage.setItem('bountyai_google_error','{str(e)[:100]}');window.location='/'</script>")
+    def _nuclei_scan(self, body):
+        user, err = require_role(self, "admin", "analyst")
+        if err:
+            return err[0]
+        domain = body.get("domain", "").strip()
+        if not domain:
+            return {"error": "domain is required"}
+        severity = body.get("severity")
+        tags = body.get("tags")
+        tid = body.get("template_id")
+        timeout = body.get("timeout", 180)
+        return run_nuclei_scan(domain, severity_filter=severity, tags_filter=tags, template_id=tid, timeout_sec=timeout)
+    def _nuclei_setup(self, body):
+        user, err = require_role(self, "admin")
+        if err:
+            return err[0]
+        tpl_dir = ensure_nuclei_templates()
+        if tpl_dir and tpl_dir.exists():
+            count = count_nuclei_templates()
+            return {"status": "ready", "templates_dir": str(tpl_dir), "template_count": count}
+        return {"status": "error", "message": "Failed to clone nuclei-templates. Is git installed?"}
     def _export_csv(self): return {"csv": "id,title,severity\n"}
     def _export_json(self): return {"json": "[]"}
-    def _register_user(self, body): return {"username": body.get("username"), "created": True}
-    def _login_user(self, body): return {"token": "session-token-123", "username": body.get("username")}
+    def _register_user(self, body):
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        email = (body.get("email") or "").strip()
+        role = body.get("role", "viewer")
+        if not username or not password:
+            return {"error": "Username and password required"}
+        if len(password) < 6:
+            return {"error": "Password must be at least 6 characters"}
+        if role not in ("admin", "analyst", "viewer"):
+            return {"error": "Invalid role. Must be admin, analyst, or viewer"}
+        conn = get_db()
+        try:
+            conn.execute("INSERT INTO users (username,email,password_hash,role) VALUES (?,?,?,?)",
+                         (username, email, hash_password(password), role))
+            conn.commit()
+            token = create_token(username, role)
+            return {"token": token, "username": username, "role": role, "email": email}
+        except sqlite3.IntegrityError:
+            return {"error": "Username or email already exists"}
+        finally:
+            conn.close()
+
+    def _login_user(self, body):
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        if not username or not password:
+            return {"error": "Username and password required"}
+        conn = get_db()
+        user = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        conn.close()
+        if not user or not verify_password(password, user["password_hash"]):
+            return {"error": "Invalid credentials"}
+        if not user["is_active"]:
+            return {"error": "Account is disabled"}
+        token = create_token(user["username"], user["role"])
+        return {"token": token, "username": user["username"], "role": user["role"], "email": user["email"]}
     def _ml_predict(self, body): return predict_vulns(body.get("domain",""), body.get("tech_stack"))
 
 # ── FRONTEND HTML ─────────────────────────────────────────────

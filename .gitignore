@@ -27,3 +27,10 @@ Thumbs.db
 .agent/
 tmp/
 *.tmp
+
+# Nuclei (too large for GitHub)
+*.exe
+nuclei-templates/
+
+# Server logs
+*.txt

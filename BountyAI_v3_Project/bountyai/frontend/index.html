@@ -50,6 +50,36 @@ body::after{content:'';position:fixed;top:-40vh;left:-20vw;width:80vw;height:80v
 .tbr{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .apill{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.5px;padding:5px 11px;background:var(--bg3);border:1px solid var(--ln);border-radius:4px;cursor:default}
 .adot{width:6px;height:6px;border-radius:50%;background:var(--t3)}
+.user-pill{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2);background:var(--bg3);border:1px solid var(--ln);border-radius:4px;padding:4px 10px;cursor:default}
+.user-pill .urole{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.8px;padding:2px 6px;border-radius:3px;font-weight:700;text-transform:uppercase}
+.urole-admin{color:var(--red);background:var(--rd);border:1px solid rgba(255,63,98,.3)}
+.urole-analyst{color:var(--cyan);background:var(--cd);border:1px solid rgba(53,232,196,.3)}
+.urole-viewer{color:var(--t3);background:rgba(255,255,255,.04);border:1px solid var(--ln)}
+.btn-logout{background:none;border:1px solid var(--ln);color:var(--t2);padding:4px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-family:'IBM Plex Mono',monospace;transition:all .15s}
+.btn-logout:hover{color:var(--red);border-color:rgba(255,63,98,.4);background:var(--rd)}
+
+/* ── LOGIN / REGISTER ── */
+.auth-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:var(--bg)}
+.auth-overlay .lhex{width:48px;height:48px;margin:0 auto 16px;background:linear-gradient(135deg,var(--lime),var(--cyan));clip-path:polygon(50% 0%,95% 25%,95% 75%,50% 100%,5% 75%,5% 25%);animation:hglow 3s ease-in-out infinite}
+.auth-box{background:var(--bg2);border:1px solid var(--ln);border-radius:12px;padding:40px;width:380px;max-width:92vw}
+.auth-box h2{font-size:22px;font-weight:800;text-align:center;margin-bottom:6px;color:var(--txt)}
+.auth-box .asub{text-align:center;color:var(--t2);font-size:13px;margin-bottom:28px}
+.auth-box .fg{margin-bottom:16px}
+.auth-box .fg label{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:1px;color:var(--t3);margin-bottom:6px;font-weight:600}
+.auth-box .fg input,.auth-box .fg select{width:100%;padding:10px 12px;background:var(--bg);border:1px solid var(--ln2);border-radius:var(--r);color:var(--txt);font-size:14px;font-family:'Outfit',sans-serif;outline:none;transition:border-color .15s}
+.auth-box .fg input:focus,.auth-box .fg select:focus{border-color:var(--lime)}
+.auth-box .fg select{cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234f5870'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.auth-box .fg select option{background:var(--bg2);color:var(--txt)}
+.auth-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--lime),#a0d830);color:#060810;font-weight:800;font-size:14px;border:none;border-radius:var(--r);cursor:pointer;letter-spacing:.3px;transition:all .18s;font-family:'Outfit',sans-serif}
+.auth-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(180,240,66,.3)}
+.auth-btn:active{transform:translateY(0)}
+.auth-btn.secondary{background:var(--bg3);color:var(--txt);border:1px solid var(--ln);margin-top:10px}
+.auth-btn.secondary:hover{border-color:var(--lime);color:var(--lime);box-shadow:none}
+.auth-err{color:var(--red);font-size:12px;text-align:center;margin-top:12px;display:none}
+.auth-toggle{text-align:center;margin-top:18px;font-size:13px;color:var(--t2)}
+.auth-toggle a{color:var(--lime);cursor:pointer;text-decoration:none;font-weight:600}
+.auth-toggle a:hover{text-decoration:underline}
+.auth-sep{text-align:center;color:var(--t3);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace;letter-spacing:1px}
 
 /* ── REMEDIATION ENGINE ── */
 .repdoc { background:var(--bg3); border-radius:12px; border:1px solid var(--bd); min-height:650px; padding:35px; overflow-y:auto; line-height:1.7; position:relative; }
@@ -319,8 +349,54 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
 .toast.inf{border-color:rgba(72,150,255,.5);color:var(--blue);background:rgba(6,8,16,.95)}
 
 /* ── RESPONSIVE ── */
-@media(max-width:1100px){.krow{grid-template-columns:repeat(2,1fr)}.dlayout{grid-template-columns:1fr}.rlayout{grid-template-columns:1fr}.flayout{grid-template-columns:1fr}.hero{grid-template-columns:1fr}.ksmall{flex-direction:row;justify-content:space-around}.rcols{grid-template-columns:1fr}}
-@media(max-width:700px){.g2,.g3,.g4{grid-template-columns:1fr}.ntab span:not(.ndot){display:none}.pg{padding:14px 12px}}
+@media(max-width:1100px){
+  .krow{grid-template-columns:repeat(2,1fr)}
+  .dlayout,.rlayout,.flayout,.hero{grid-template-columns:1fr}
+  .ksmall{flex-direction:row;justify-content:space-around}
+  .rcols{grid-template-columns:1fr}
+  .g4{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr}
+  .pgrid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+}
+@media(max-width:900px){
+  .topbar{padding:0 12px;gap:8px;height:50px}
+  .lname{font-size:14px}
+  .ltag{display:none}
+  .ntab{padding:6px 10px;font-size:11px}
+  .ntab span:not(.ndot){display:none}
+  .pg{padding:18px 14px}
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .pgrid{grid-template-columns:1fr}
+  .ai-badge{display:none}
+}
+@media(max-width:700px){
+  .topbar{flex-wrap:wrap;height:auto;padding:8px 10px}
+  .logo{width:100%}
+  .nav{order:3;width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+  .ntab{padding:5px 8px;font-size:10px}
+  .tbr{margin-left:0}
+  .pg{padding:14px 10px}
+  .stat-vs{flex-direction:column;gap:8px}
+  .cve-wizard-steps{flex-wrap:wrap}
+  .cws{flex:unset;width:calc(50% - 1px);font-size:9px;padding:6px}
+  .glab-grid{grid-template-columns:1fr}
+  .report-grid{grid-template-columns:1fr !important}
+  .flow-node{width:100px;padding:8px;font-size:10px}
+  .flow-label{font-size:8px}
+  .flow-action{font-size:11px}
+  .stat-vs-num{font-size:24px}
+  .stat-vs-div{font-size:20px}
+}
+@media(max-width:480px){
+  .topbar{padding:6px 8px}
+  .lhex{width:22px;height:22px}
+  .lname{font-size:12px}
+  .nav{gap:1px}
+  .ntab{padding:4px 6px;font-size:9px;gap:3px}
+  .pg{padding:12px 8px}
+  .auth-btn{font-size:13px;padding:10px 16px}
+  .inspector-area{font-size:10px;padding:10px;min-height:120px}
+}
 
 /* ── AGENT PERSONAS (Paper 1 — CAI Framework) ── */
 .agent-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
@@ -448,7 +524,45 @@ label{display:block;font-size:10px;letter-spacing:1.5px;color:var(--t3);margin-b
     <button class="ntab" onclick="go('rank')" id="tab-rank"><span class="ndot"></span><span>🏆 Leaderboard</span></button>
   </div>
   <div class="tbr">
+    <div id="user-pill" class="user-pill" style="display:none"></div>
     <div class="apill"><div class="adot" id="apd"></div><span id="albl" style="color:var(--t3)">Connecting...</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════ LOGIN / REGISTER ══════════════════════════ -->
+<div id="auth-overlay" class="auth-overlay" style="display:none">
+  <div class="auth-box">
+    <div class="lhex"></div>
+    <div id="auth-title"><h2>Welcome back</h2></div>
+    <div class="asub" id="auth-sub">Sign in to Bug Bounty Assistant</div>
+
+    <div id="auth-form-login">
+      <div class="fg"><label>USERNAME</label><input id="auth-user" placeholder="e.g. admin" autocomplete="username"></div>
+      <div class="fg"><label>PASSWORD</label><input id="auth-pass" type="password" placeholder="Enter password" autocomplete="current-password"></div>
+      <div class="auth-err" id="auth-err-login"></div>
+      <button class="auth-btn" onclick="doLogin()">Sign In</button>
+      <div class="auth-sep">— or —</div>
+      <button class="auth-btn" id="google-login-btn" onclick="doGoogleLogin()" style="background:#fff;color:#333;border:1px solid #dadce0;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:10px">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Sign in with Google
+      </button>
+      <div class="auth-toggle">Don't have an account? <a onclick="showRegister()">Create one</a></div>
+    </div>
+
+    <div id="auth-form-register" style="display:none">
+      <div class="fg"><label>USERNAME</label><input id="reg-user" placeholder="Choose a username" autocomplete="username"></div>
+      <div class="fg"><label>EMAIL</label><input id="reg-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+      <div class="fg"><label>PASSWORD</label><input id="reg-pass" type="password" placeholder="Min 6 characters" autocomplete="new-password"></div>
+      <div class="fg"><label>ROLE</label>
+        <select id="reg-role">
+          <option value="analyst">Analyst — run scans, log findings</option>
+          <option value="viewer">Viewer — read-only access</option>
+        </select>
+      </div>
+      <div class="auth-err" id="auth-err-reg"></div>
+      <button class="auth-btn" onclick="doRegister()">Create Account</button>
+      <div class="auth-toggle">Already have an account? <a onclick="showLogin()">Sign in</a></div>
+    </div>
   </div>
 </div>
 
@@ -1163,6 +1277,134 @@ var roiData = {};           // real ROI data from API
 var lbData = {};            // real leaderboard data
 
 // ──────────────────────────────────────────────────────────────────────
+// AUTH STATE
+// ──────────────────────────────────────────────────────────────────────
+var authToken = localStorage.getItem('bountyai_token');
+var authUser = null;
+
+function showLogin() {
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('auth-form-login').style.display = 'block';
+  document.getElementById('auth-form-register').style.display = 'none';
+  document.getElementById('auth-title').innerHTML = '<h2>Welcome back</h2>';
+  document.getElementById('auth-sub').textContent = 'Sign in to Bug Bounty Assistant';
+  document.getElementById('auth-err-login').style.display = 'none';
+  document.getElementById('auth-err-reg').style.display = 'none';
+}
+function showRegister() {
+  document.getElementById('auth-overlay').style.display = 'flex';
+  document.getElementById('auth-form-login').style.display = 'none';
+  document.getElementById('auth-form-register').style.display = 'block';
+  document.getElementById('auth-title').innerHTML = '<h2>Create account</h2>';
+  document.getElementById('auth-sub').textContent = 'Join Bug Bounty Assistant';
+  document.getElementById('auth-err-login').style.display = 'none';
+  document.getElementById('auth-err-reg').style.display = 'none';
+}
+function hideAuth() {
+  document.getElementById('auth-overlay').style.display = 'none';
+  document.getElementById('nav').style.display = 'flex';
+}
+function doLogin() {
+  var u = document.getElementById('auth-user').value.trim();
+  var p = document.getElementById('auth-pass').value;
+  var errEl = document.getElementById('auth-err-login');
+  errEl.style.display = 'none';
+  if (!u || !p) { errEl.textContent = 'Username and password required'; errEl.style.display = 'block'; return; }
+  fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p})})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { errEl.textContent = d.error; errEl.style.display = 'block'; return; }
+      authToken = d.token;
+      authUser = {username: d.username, role: d.role};
+      localStorage.setItem('bountyai_token', authToken);
+      localStorage.setItem('bountyai_user', JSON.stringify(authUser));
+      hideAuth();
+      updateUserPill();
+      checkHealth();
+      loadDash();
+    })
+    .catch(function(e) { errEl.textContent = 'Connection failed'; errEl.style.display = 'block'; });
+}
+function doRegister() {
+  var u = document.getElementById('reg-user').value.trim();
+  var e = document.getElementById('reg-email').value.trim();
+  var p = document.getElementById('reg-pass').value;
+  var r = document.getElementById('reg-role').value;
+  var errEl = document.getElementById('auth-err-reg');
+  errEl.style.display = 'none';
+  if (!u || !p || !e) { errEl.textContent = 'All fields required'; errEl.style.display = 'block'; return; }
+  if (p.length < 6) { errEl.textContent = 'Password must be at least 6 characters'; errEl.style.display = 'block'; return; }
+  fetch('/api/auth/register', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, email:e, password:p, role:r})})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { errEl.textContent = d.error; errEl.style.display = 'block'; return; }
+      authToken = d.token;
+      authUser = {username: d.username, role: d.role};
+      localStorage.setItem('bountyai_token', authToken);
+      localStorage.setItem('bountyai_user', JSON.stringify(authUser));
+      hideAuth();
+      updateUserPill();
+      checkHealth();
+      loadDash();
+    })
+    .catch(function(e) { errEl.textContent = 'Connection failed'; errEl.style.display = 'block'; });
+}
+function doLogout() {
+  authToken = null;
+  authUser = null;
+  localStorage.removeItem('bountyai_token');
+  localStorage.removeItem('bountyai_user');
+  updateUserPill();
+  showLogin();
+}
+function doGoogleLogin() {
+  fetch('/api/auth/google')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { alert(d.error); return; }
+      window.location.href = d.url;
+    })
+    .catch(function() { alert('Failed to connect to server'); });
+}
+function checkGoogleCallback() {
+  var err = localStorage.getItem('bountyai_google_error');
+  if (err) {
+    localStorage.removeItem('bountyai_google_error');
+    showLogin();
+    var errEl = document.getElementById('auth-err-login');
+    if (errEl) { errEl.textContent = 'Google sign-in failed: ' + err; errEl.style.display = 'block'; }
+  }
+}
+function updateUserPill() {
+  var pill = document.getElementById('user-pill');
+  if (!pill) return;
+  if (authUser) {
+    var roleCls = 'urole-' + authUser.role;
+    pill.innerHTML = '<span class="urole ' + roleCls + '">' + authUser.role + '</span><span>' + authUser.username + '</span><button class="btn-logout" onclick="doLogout()">Logout</button>';
+    pill.style.display = 'flex';
+  } else {
+    pill.innerHTML = '<button class="btn-logout" onclick="showLogin()" style="color:var(--lime);border-color:rgba(180,240,66,.3)">Login</button>';
+    pill.style.display = 'flex';
+  }
+}
+function checkAuthToken() {
+  if (!authToken) { showLogin(); return false; }
+  var saved = localStorage.getItem('bountyai_user');
+  if (saved) { try { authUser = JSON.parse(saved); } catch(e) {} }
+  fetch('/api/auth/me', {headers:{'Authorization':'Bearer '+authToken}})
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.error) { authToken = null; authUser = null; localStorage.removeItem('bountyai_token'); localStorage.removeItem('bountyai_user'); showLogin(); return; }
+      authUser = {username: d.username, role: d.role};
+      localStorage.setItem('bountyai_user', JSON.stringify(authUser));
+      hideAuth();
+      updateUserPill();
+    })
+    .catch(function() {});
+  return true;
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // NAVIGATION
 // ──────────────────────────────────────────────────────────────────────
 function go(id) {
@@ -1227,8 +1469,10 @@ function showToast(msg, t) {
 // ──────────────────────────────────────────────────────────────────────
 function api(method, path, body) {
   var opts = { method: method, headers: {'Content-Type': 'application/json'} };
+  if (authToken) opts.headers['Authorization'] = 'Bearer ' + authToken;
   if (body) opts.body = JSON.stringify(body);
   return fetch('/api' + path, opts).then(function(r) {
+    if (r.status === 401) { doLogout(); throw new Error('Session expired — please sign in again'); }
     if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || r.statusText); });
     return r.json();
   });
@@ -3143,6 +3387,13 @@ function loadDiscoveryResults() {
 // BOOT — load real data on startup
 
 // ──────────────────────────────────────────────────────────────────────
+document.getElementById('nav').style.display = 'none';
+updateUserPill();
+checkGoogleCallback();
+if (checkAuthToken()) {
+  hideAuth();
+  document.getElementById('nav').style.display = 'flex';
+}
 checkHealth();
 loadDash();
 setInterval(checkHealth, 30000);

@@ -1,0 +1,23 @@
+# Dependencies / binaries
+server/nuclei.exe
+server/nuclei-templates/
+
+# Database
+*.db
+*.db-wal
+*.db-shm
+
+# Environment / secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Temp / logs
+server/*.txt
+server/*.log
+
+# OS
+.DS_Store
+Thumbs.db
