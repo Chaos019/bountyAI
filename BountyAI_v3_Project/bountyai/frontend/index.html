@@ -1747,15 +1747,18 @@ function autoLogAllFindings(domain, vulns, cves) {
   var promises = [];
   // Log vuln suggestions
   (vulns || []).forEach(function(v) {
+    var vtype = v.title || v.type || 'Unknown';
+    var vtarget = v.payload || v.target || ('https://' + domain + '/');
+    var vdesc = v.description || v.finding || '';
     var payload = {
-      vuln_type: v.title || v.type || 'Unknown',
+      vuln_type: vtype,
       severity: (v.severity || 'M')[0].toUpperCase(),
       program_name: 'Auto-Logged (Recon)',
       target_domain: domain,
-      affected_url: v.payload || ('https://' + domain + '/'),
-      description: v.description || '',
-      steps_to_reproduce: '1. Recon on ' + domain + '\n2. Type: ' + (v.title || v.type) + '\n3. Validate manually',
-      impact: 'Potential ' + (v.title || v.type) + ' vulnerability'
+      affected_url: vtarget,
+      description: vdesc || (vtype + ' identified on ' + domain + '. The ' + vtype + ' vulnerability was detected during automated reconnaissance and requires manual validation.'),
+      steps_to_reproduce: '1. Navigate to ' + domain + ' and identify the target endpoint or parameter.\n2. ' + (v.target ? 'Target component: ' + v.target + '.' : 'Locate the affected input vector.') + '\n3. Craft a malicious payload targeting the ' + vtype + ' weakness:\n   - Payload: ' + (v.payload || '[Insert ' + vtype + ' payload here]') + '\n4. Send the crafted request via Burp Suite or browser console.\n5. Observe the server response for signs of successful exploitation (e.g., reflected input, error messages, unauthorized data).\n6. Confirm the vulnerability by demonstrating repeatable impact.\n7. Document all HTTP request/response pairs as evidence.',
+      impact: vtype + ' on ' + domain + ' can lead to:\n- Unauthorized access to sensitive user data (session tokens, PII, credentials).\n- Potential account takeover through session hijacking or privilege escalation.\n- Injection of malicious scripts/commands affecting other users (stored/reflected XSS scenario).\n- Compliance violations (OWASP Top 10, PCI-DSS, GDPR) depending on data handled.\n- Reputational damage and loss of user trust if exploited in production.\n- Further lateral movement within the application infrastructure if chained with other vulnerabilities.'
     };
     promises.push(
       api('POST','/findings', payload).then(function(r) {
@@ -1767,15 +1770,18 @@ function autoLogAllFindings(domain, vulns, cves) {
   });
   // Log CVEs
   (cves || []).forEach(function(c) {
+    var cid = c.id || 'CVE';
+    var ctarget = c.target || 'unknown component';
+    var cdesc = c.description || cid + ' affects ' + ctarget + '. This is a known vulnerability with public exploit code available.';
     var payload = {
-      vuln_type: c.id || 'CVE',
+      vuln_type: cid,
       severity: (c.severity || 'M')[0].toUpperCase(),
       program_name: 'Auto-Logged (Recon)',
       target_domain: domain,
       affected_url: 'https://' + domain + '/',
-      description: c.description || c.id || '',
-      steps_to_reproduce: 'CVE in stack: ' + (c.target || 'unknown component'),
-      impact: c.description || 'Known CVE detected in technology stack'
+      description: cdesc + ' The vulnerable component (' + ctarget + ') was identified in the technology stack of ' + domain + '. CVSS severity: ' + (c.severity || 'MEDIUM') + '.',
+      steps_to_reproduce: '1. Identify the vulnerable component: ' + ctarget + ' is running on ' + domain + '.\n2. Check the current version:\n   - ' + (c.target ? 'Component: ' + ctarget : 'Use browser dev tools or Shodan to determine the version.') + '\n3. Look up ' + cid + ' on NVD (https://nvd.nist.gov/vuln/detail/' + cid + ') for affected versions and exploit details.\n4. Verify the target is running a vulnerable version:\n   - Check HTTP response headers, JavaScript libraries, or page source for version strings.\n   - Use tools like Retire.js, Snyk, or npm audit if applicable.\n5. Test for exploitation:\n   - Use public PoC exploit from Exploit-DB or GitHub.\n   - Craft the exploit payload targeting the specific CVE.\n6. Document evidence: version proof, exploit output, and impact demonstration.\n7. Verify remediation path by checking vendor advisory for patched version.',
+      impact: cdesc + '\n\nIf exploited, this vulnerability could allow:\n- Remote code execution (RCE) enabling full server compromise.\n- Unauthorized data access including database contents and user records.\n- Denial of service (DoS) disrupting application availability.\n- Privilege escalation from unauthenticated access to admin control.\n- Lateral movement to internal network systems.\n- Potential supply chain impact if the component is shared across services.\n\nRecommended: Patch ' + ctarget + ' to the latest stable version immediately and verify with a rescan.'
     };
     promises.push(
       api('POST','/findings', payload).then(function(r) {

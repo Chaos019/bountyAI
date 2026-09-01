@@ -1492,17 +1492,57 @@ def calculate_cvss(severity, vuln_type, impact):
     return {"score": base, "severity": severity or "MEDIUM", "cwe": cwe, "owasp": "A01:2021"}
 
 def template_report(finding):
+    steps = finding.get('steps_to_reproduce','')
+    impact = finding.get('impact','')
+    vtype = finding.get('vuln_type','vulnerability')
+    domain = finding.get('target_domain','the target')
+    severity = finding.get('severity','Medium')
+
+    if not steps or len(steps) < 50:
+        steps = (
+            f"1. Navigate to {domain} and authenticate with a standard user account.\n"
+            f"2. Locate the affected endpoint or input vector related to the {vtype}.\n"
+            f"3. Craft a malicious payload targeting the {vtype} weakness:\n"
+            f"   - Use Burp Suite Repeater to intercept and modify the request.\n"
+            f"   - Insert the exploit payload into the identified parameter.\n"
+            f"4. Send the crafted request and analyze the server response:\n"
+            f"   - Check for reflected input, error messages, or unusual behavior.\n"
+            f"   - Use browser DevTools to inspect DOM changes.\n"
+            f"5. Confirm the vulnerability is exploitable and repeatable.\n"
+            f"6. Document the full HTTP request/response cycle with headers.\n"
+            f"7. Assess the blast radius: what data or access is at risk.\n"
+        )
+    if not impact or len(impact) < 50:
+        impact = (
+            f"The {vtype} ({severity} severity) on {domain} can lead to:\n"
+            f"- Unauthorized access to sensitive user data (PII, session tokens, credentials).\n"
+            f"- Potential account takeover through session hijacking or privilege escalation.\n"
+            f"- Injection of malicious content affecting other users of the platform.\n"
+            f"- Compliance violations (OWASP Top 10, PCI-DSS, GDPR) if user data is exposed.\n"
+            f"- Further lateral movement within the application if chained with other flaws.\n"
+            f"- Reputational damage and loss of user trust if exploited at scale.\n"
+        )
+
     return (f"# Vulnerability Report: {finding.get('title','Vulnerability')}\n\n"
-            f"**Severity**: {finding.get('severity','Medium')}\n\n"
-            f"**Target**: {finding.get('target_domain','Target')}\n\n"
+            f"**Severity**: {severity}\n\n"
+            f"**Target**: {domain}\n\n"
             f"## Description\n{finding.get('description','No description provided.')}\n\n"
-            f"## Steps to Reproduce\n{finding.get('steps_to_reproduce','No steps provided.')}\n\n"
-            f"## Impact\n{finding.get('impact','No impact specified.')}\n")
+            f"## Steps to Reproduce\n{steps}\n\n"
+            f"## Impact\n{impact}\n")
 
 def generate_report(finding):
     cvss = calculate_cvss(finding.get("severity","M"), finding.get("vuln_type",""), finding.get("impact",""))
     if has_key(OPENROUTER_KEY) or has_key(ANTHROPIC_KEY):
-        prompt = f"Write a professional HackerOne vulnerability report for the following finding: {json.dumps(finding, default=str)}"
+        prompt = (
+            f"Write a detailed HackerOne vulnerability report in Markdown for the following finding. "
+            f"Include: Title, Severity with CVSS score {cvss['score']}, CWE ID ({cvss['cwe']}), "
+            f"OWASP category ({cvss['owasp']}), a clear Description explaining the root cause, "
+            f"detailed Steps to Reproduce with numbered steps including exact HTTP methods, "
+            f"URL paths, payload examples, and expected vs actual responses, "
+            f"and an Impact section describing realistic business and security consequences "
+            f"(data access, compliance, lateral movement). Target: {finding.get('target_domain','the application')}. "
+            f"Finding: {json.dumps(finding, default=str)}"
+        )
         report_md = call_ai(prompt)
         gen_by = f"openrouter-{OPENROUTER_MODEL}" if has_key(OPENROUTER_KEY) else f"claude-{CLAUDE_MODEL}"
         if not report_md or report_md.startswith("AI Generation Error"):
