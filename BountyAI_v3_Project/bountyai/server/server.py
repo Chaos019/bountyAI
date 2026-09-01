@@ -45,7 +45,7 @@ def get_frontend_html():
     return _fe.read_text(encoding="utf-8", errors="ignore")
 
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku-20240307")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m3:free")
 ANTHROPIC_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL   = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 SHODAN_KEY     = os.getenv("SHODAN_API_KEY", "")
@@ -349,6 +349,7 @@ def call_openrouter(prompt, max_tokens=1800):
     payload = json.dumps({
         "model": OPENROUTER_MODEL,
         "max_tokens": max_tokens,
+        "temperature": 0.3,
         "messages": [{"role": "user", "content": prompt}]
     }).encode("utf-8")
     req = urllib.request.Request(
@@ -362,8 +363,10 @@ def call_openrouter(prompt, max_tokens=1800):
         },
         method="POST"
     )
-    with urllib.request.urlopen(req, timeout=25) as r:
+    with urllib.request.urlopen(req, timeout=80) as r:
         res = json.loads(r.read().decode("utf-8"))
+        if "error" in res:
+            raise ValueError(f"API error: {res['error'].get('message', str(res['error']))}")
         return res["choices"][0]["message"]["content"]
 
 def call_claude(prompt, max_tokens=1800):
@@ -928,7 +931,7 @@ def build_fallback_map(content):
 
     entry = "attacker"
     nodes.append({"id": "entry", "type": "Input", "label": "Application Entry", "x": 35, "y": 40})
-    links.append({"from": entry, "to": "entry"})
+    links.append({"from": "attacker", "to": "entry"})
     entry = "entry"
 
     for i, h in enumerate(hosts[:6]):
