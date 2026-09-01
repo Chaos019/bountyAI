@@ -125,11 +125,25 @@ def create_token(username, role, uid=None):
     return jwt_encode(payload)
 
 def get_current_user(handler):
-    """Extract and validate JWT from Authorization header. Returns dict or None."""
+    """Extract and validate JWT from Authorization header. Returns dict or None.
+    Also verifies the user is still active in the database."""
     auth = handler.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    return jwt_decode(auth[7:])
+    payload = jwt_decode(auth[7:])
+    if not payload:
+        return None
+    uid = payload.get("uid")
+    if uid is not None:
+        try:
+            conn = get_db()
+            row = conn.execute("SELECT is_active FROM users WHERE id=?", (uid,)).fetchone()
+            conn.close()
+            if not row or not row["is_active"]:
+                return None
+        except Exception:
+            pass
+    return payload
 
 def require_role(handler, *allowed_roles):
     """Check JWT and role. Returns (user_dict, None) on success or (None, error_response) on failure."""
