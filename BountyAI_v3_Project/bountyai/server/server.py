@@ -362,7 +362,7 @@ def call_openrouter(prompt, max_tokens=1800):
         },
         method="POST"
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=25) as r:
         res = json.loads(r.read().decode("utf-8"))
         return res["choices"][0]["message"]["content"]
 
@@ -382,7 +382,7 @@ def call_claude(prompt, max_tokens=1800):
         },
         method="POST"
     )
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=25) as r:
         return json.loads(r.read().decode("utf-8"))["content"][0]["text"]
 
 def call_ai(prompt, max_tokens=1800):
@@ -1747,7 +1747,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type,Authorization")
         self.end_headers()
 
     _PUBLIC_PATHS = {"/api/bounty", "/api/auth/login", "/api/auth/register", "/api/auth/google",
@@ -1763,98 +1763,130 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             if auth.startswith("Bearer "):
                 self.send_json({"error": "Authentication required"}, 401)
                 return True
+            return False
+        if user.get("status") == "disabled":
+            self.send_json({"error": "Account disabled. Contact administrator."}, 403)
+            return True
         return False
 
     def do_GET(self):
-        p = self.path.split("?")[0].rstrip("/")
-        if self._reject_disabled(p): return
-        if p in ("", "/"): return self.send_html(get_frontend_html())
-        if p == "/api/bounty":         return self.send_json(self._health())
-        if p == "/api/stats":          return self.send_json(self._stats())
-        if p == "/api/programs":       return self.send_json(self._programs())
-        if p == "/api/findings":       return self.send_json(self._findings())
-        if p == "/api/reports":        return self.send_json(self._reports())
-        if p == "/api/learning":       return self.send_json(get_learning_resources())
-        if p == "/api/disclosures":    return self.send_json(self._get_disclosures())
-        if p == "/api/reputation":     return self.send_json(self._get_reputation())
-        if p == "/api/leaderboard":    return self.send_json(self._get_leaderboard())
-        if p == "/api/roi/stats":      return self.send_json(self._get_roi_stats())
-        if p == "/api/agent/config":   return self.send_json(self._get_agent_config())
-        if p == "/api/activity":       return self.send_json(self._get_activity())
-        if p == "/api/payout/summary": return self.send_json(self._get_payout_summary())
-        if p == "/api/discovery/results": return self.send_json(self._discovery_results())
-        if p == "/api/nuclei/templates": return self.send_json(self._get_nuclei_templates())
-        if p == "/api/auth/me":          return self.send_json(self._auth_me())
-        if p == "/api/auth/google":      return self.send_json(self._google_auth_url())
-        if p == "/api/auth/google/callback": return self._google_callback()
-        if p == "/api/export/csv":     return self.send_json(self._export_csv())
-        if p == "/api/export/json":    return self.send_json(self._export_json())
-        if p == "/api/admin/users":    return self.send_json(self._admin_users())
-        if p == "/api/admin/stats":    return self.send_json(self._admin_stats())
-        if p == "/api/admin/activity": return self.send_json(self._admin_activity())
-        if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._get_finding(int(p.split("/")[-1])))
-        if re.match(r"^/api/reports/\d+$", p):  return self.send_json(self._get_report(int(p.split("/")[-1])))
-        self.send_html(get_frontend_html())
+        try:
+            p = self.path.split("?")[0].rstrip("/")
+            if self._reject_disabled(p): return
+            if p in ("", "/"): return self.send_html(get_frontend_html())
+            if p == "/api/bounty":         return self.send_json(self._health())
+            if p == "/api/stats":          return self.send_json(self._stats())
+            if p == "/api/programs":       return self.send_json(self._programs())
+            if p == "/api/findings":       return self.send_json(self._findings())
+            if p == "/api/reports":        return self.send_json(self._reports())
+            if p == "/api/learning":       return self.send_json(get_learning_resources())
+            if p == "/api/disclosures":    return self.send_json(self._get_disclosures())
+            if p == "/api/reputation":     return self.send_json(self._get_reputation())
+            if p == "/api/leaderboard":    return self.send_json(self._get_leaderboard())
+            if p == "/api/roi/stats":      return self.send_json(self._get_roi_stats())
+            if p == "/api/agent/config":   return self.send_json(self._get_agent_config())
+            if p == "/api/activity":       return self.send_json(self._get_activity())
+            if p == "/api/payout/summary": return self.send_json(self._get_payout_summary())
+            if p == "/api/discovery/results": return self.send_json(self._discovery_results())
+            if p == "/api/nuclei/templates": return self.send_json(self._get_nuclei_templates())
+            if p == "/api/auth/me":          return self.send_json(self._auth_me())
+            if p == "/api/auth/google":      return self.send_json(self._google_auth_url())
+            if p == "/api/auth/google/callback": return self._google_callback()
+            if p == "/api/export/csv":     return self.send_json(self._export_csv())
+            if p == "/api/export/json":    return self.send_json(self._export_json())
+            if p == "/api/admin/users":    return self.send_json(self._admin_users())
+            if p == "/api/admin/stats":    return self.send_json(self._admin_stats())
+            if p == "/api/admin/activity": return self.send_json(self._admin_activity())
+            if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._get_finding(int(p.split("/")[-1])))
+            if re.match(r"^/api/reports/\d+$", p):  return self.send_json(self._get_report(int(p.split("/")[-1])))
+            self.send_html(get_frontend_html())
+        except Exception as e:
+            print(f"  [do_GET ERROR] {self.path}: {e}")
+            try:
+                self.send_json({"error": "Internal server error", "detail": str(e)}, 500)
+            except Exception:
+                pass
 
     def do_POST(self):
-        p = self.path.rstrip("/")
-        if self._reject_disabled(p): return
-        body = self.read_body()
-        # Auth endpoints — no token required
-        if p == "/api/auth/register":       return self.send_json(self._register_user(body), 201)
-        if p == "/api/auth/login":          return self.send_json(self._login_user(body))
-        # Admin-only endpoints
-        if p == "/api/nuclei/setup":          return self.send_json(self._nuclei_setup(body))
-        # Admin + Analyst endpoints
-        if p == "/api/nuclei/scan":           return self.send_json(self._nuclei_scan(body))
-        if p == "/api/recon":               return self.send_json(self._do_recon(body))
-        if p == "/api/reports/generate":    return self.send_json(self._gen_report(body), 201)
-        if p == "/api/ml/predict":          return self.send_json(self._ml_predict(body))
-        if p == "/api/analyze/vulnerability": return self.send_json(self._ai_analyze(body))
-        if p == "/api/analyze/visual-flow":   return self.send_json(self._ai_visual_flow(body))
-        if p == "/api/analyze/api-inspector": return self.send_json(self._ai_api_inspector(body))
-        if p == "/api/analyze/logic":         return self.send_json(self._ai_logic_auditor(body))
-        if p == "/api/analyze/strategy":      return self.send_json(self._ai_strategist(body))
-        if p == "/api/analyze/exploit":       return self.send_json(self._ai_exploit_gen(body))
-        if p == "/api/analyze/duplicate-risk":return self.send_json(self._ai_duplicate_risk(body))
-        if p == "/api/analyze/js-secrets":    return self.send_json(self._analyze_js_secrets(body))
-        if p == "/api/analyze/remediation":   return self.send_json(self._ai_remediation(body))
-        if p == "/api/discovery/crawl":       return self.send_json(self._discovery_crawl(body))
-        # All authenticated roles
-        if p == "/api/findings":            return self.send_json(self._create_finding(body), 201)
-        if p == "/api/disclosures":         return self.send_json(self._create_disclosure(body), 201)
-        if p == "/api/agent/config":        return self.send_json(self._save_agent_config(body))
-        if p == "/api/analyze/pdf-text":     return self.send_json(self._extract_pdf_text(body))
-        if p == "/api/report/export-pdf":   return self.send_json(self._export_report_pdf(body))
-        # Admin-only management
-        if p == "/api/programs/sync":       return self.send_json({"synced": sync_programs_to_db()})
-        if p == "/api/programs/live":      return self.send_json({"programs": fetch_live_programs(), "total": len(fetch_live_programs())})
-        if p == "/api/resources/sync":      return self.send_json({"resources": fetch_resource_packs()})
-        if p == "/api/reports/submit":      return self.send_json(self._submit_h1(body), 200)
-        if re.match(r"^/api/findings/\d+/payout$", p):
-            return self.send_json(self._add_payout(int(p.split("/")[-2]), body), 201)
-        self.send_json({"error": "not found"}, 404)
+        try:
+            p = self.path.rstrip("/")
+            if self._reject_disabled(p): return
+            body = self.read_body()
+            # Auth endpoints — no token required
+            if p == "/api/auth/register":       return self.send_json(self._register_user(body), 201)
+            if p == "/api/auth/login":          return self.send_json(self._login_user(body))
+            # Admin-only endpoints
+            if p == "/api/nuclei/setup":          return self.send_json(self._nuclei_setup(body))
+            # Admin + Analyst endpoints
+            if p == "/api/nuclei/scan":           return self.send_json(self._nuclei_scan(body))
+            if p == "/api/recon":               return self.send_json(self._do_recon(body))
+            if p == "/api/reports/generate":    return self.send_json(self._gen_report(body), 201)
+            if p == "/api/ml/predict":          return self.send_json(self._ml_predict(body))
+            if p == "/api/analyze/vulnerability": return self.send_json(self._ai_analyze(body))
+            if p == "/api/analyze/visual-flow":   return self.send_json(self._ai_visual_flow(body))
+            if p == "/api/analyze/api-inspector": return self.send_json(self._ai_api_inspector(body))
+            if p == "/api/analyze/logic":         return self.send_json(self._ai_logic_auditor(body))
+            if p == "/api/analyze/strategy":      return self.send_json(self._ai_strategist(body))
+            if p == "/api/analyze/exploit":       return self.send_json(self._ai_exploit_gen(body))
+            if p == "/api/analyze/duplicate-risk":return self.send_json(self._ai_duplicate_risk(body))
+            if p == "/api/analyze/js-secrets":    return self.send_json(self._analyze_js_secrets(body))
+            if p == "/api/analyze/remediation":   return self.send_json(self._ai_remediation(body))
+            if p == "/api/discovery/crawl":       return self.send_json(self._discovery_crawl(body))
+            # All authenticated roles
+            if p == "/api/findings":            return self.send_json(self._create_finding(body), 201)
+            if p == "/api/disclosures":         return self.send_json(self._create_disclosure(body), 201)
+            if p == "/api/agent/config":        return self.send_json(self._save_agent_config(body))
+            if p == "/api/analyze/pdf-text":     return self.send_json(self._extract_pdf_text(body))
+            if p == "/api/report/export-pdf":   return self.send_json(self._export_report_pdf(body))
+            # Admin-only management
+            if p == "/api/programs/sync":       return self.send_json({"synced": sync_programs_to_db()})
+            if p == "/api/programs/live":      return self.send_json({"programs": fetch_live_programs(), "total": len(fetch_live_programs())})
+            if p == "/api/resources/sync":      return self.send_json({"resources": fetch_resource_packs()})
+            if p == "/api/reports/submit":      return self.send_json(self._submit_h1(body), 200)
+            if re.match(r"^/api/findings/\d+/payout$", p):
+                return self.send_json(self._add_payout(int(p.split("/")[-2]), body), 201)
+            self.send_json({"error": "not found"}, 404)
+        except Exception as e:
+            print(f"  [do_POST ERROR] {self.path}: {e}")
+            try:
+                self.send_json({"error": "Internal server error", "detail": str(e)}, 500)
+            except Exception:
+                pass
 
     def do_PUT(self):
-        p = self.path.rstrip("/")
-        if self._reject_disabled(p): return
-        body = self.read_body()
-        if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._update_finding(int(p.split("/")[-1]), body))
-        if re.match(r"^/api/disclosures/\d+/advance$", p):
-            return self.send_json(self._advance_disclosure(int(p.split("/")[-2])))
-        if re.match(r"^/api/admin/users/\d+/role$", p):
-            return self.send_json(self._admin_update_role(int(p.split("/")[-3]), body))
-        if re.match(r"^/api/admin/users/\d+$", p):
-            return self.send_json(self._admin_toggle_user(int(p.split("/")[-1]), body))
-        self.send_json({"error": "not found"}, 404)
+        try:
+            p = self.path.rstrip("/")
+            if self._reject_disabled(p): return
+            body = self.read_body()
+            if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._update_finding(int(p.split("/")[-1]), body))
+            if re.match(r"^/api/disclosures/\d+/advance$", p):
+                return self.send_json(self._advance_disclosure(int(p.split("/")[-2])))
+            if re.match(r"^/api/admin/users/\d+/role$", p):
+                return self.send_json(self._admin_update_role(int(p.split("/")[-3]), body))
+            if re.match(r"^/api/admin/users/\d+$", p):
+                return self.send_json(self._admin_toggle_user(int(p.split("/")[-1]), body))
+            self.send_json({"error": "not found"}, 404)
+        except Exception as e:
+            print(f"  [do_PUT ERROR] {self.path}: {e}")
+            try:
+                self.send_json({"error": "Internal server error", "detail": str(e)}, 500)
+            except Exception:
+                pass
 
     def do_DELETE(self):
-        p = self.path.rstrip("/")
-        if self._reject_disabled(p): return
-        if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._delete_finding(int(p.split("/")[-1])))
-        if re.match(r"^/api/admin/users/\d+$", p):
-            return self.send_json(self._admin_delete_user(int(p.split("/")[-1])))
-        self.send_json({"error": "not found"}, 404)
+        try:
+            p = self.path.rstrip("/")
+            if self._reject_disabled(p): return
+            if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._delete_finding(int(p.split("/")[-1])))
+            if re.match(r"^/api/admin/users/\d+$", p):
+                return self.send_json(self._admin_delete_user(int(p.split("/")[-1])))
+            self.send_json({"error": "not found"}, 404)
+        except Exception as e:
+            print(f"  [do_DELETE ERROR] {self.path}: {e}")
+            try:
+                self.send_json({"error": "Internal server error", "detail": str(e)}, 500)
+            except Exception:
+                pass
 
     # ── ENDPOINT HANDLERS ─────────────────────────────────────
     def _health(self):

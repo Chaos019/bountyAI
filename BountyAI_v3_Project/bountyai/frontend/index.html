@@ -1389,6 +1389,13 @@ function api(method, path, body) {
   if (body) opts.body = JSON.stringify(body);
   return fetch('/api' + path, opts).then(function(r) {
     if (r.status === 401) { doLogout(); throw new Error('Session expired — please sign in again'); }
+    var ct = r.headers.get('content-type') || '';
+    if (ct.indexOf('application/json') === -1) {
+      return r.text().then(function(t) {
+        if (t.indexOf('<') === 0) throw new Error('Server returned HTML instead of JSON (status ' + r.status + '). This usually means a timeout or server error. Please try again.');
+        throw new Error('Unexpected response format (status ' + r.status + ')');
+      });
+    }
     if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || r.statusText); });
     return r.json();
   });
@@ -2890,6 +2897,8 @@ function glabAnalyze(type){
             if(flowData.reasoning){
                 out.innerHTML += '<div style="margin-top:15px;padding:12px;background:var(--bg2);border:1px solid var(--bd);border-radius:8px"><div class="sl" style="color:var(--cy);margin-bottom:6px">AI Attack Flow Reasoning</div><div style="font-size:12px;line-height:1.5;color:var(--t2)">'+flowData.reasoning+'</div></div>';
             }
+        }).catch(function(e2){
+            console.warn('Visual flow generation failed:', e2.message);
         });
     }
 
