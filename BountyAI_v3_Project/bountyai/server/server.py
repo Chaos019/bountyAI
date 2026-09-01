@@ -45,7 +45,7 @@ def get_frontend_html():
     return _fe.read_text(encoding="utf-8", errors="ignore")
 
 OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku-20240307")
 ANTHROPIC_KEY  = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL   = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
 SHODAN_KEY     = os.getenv("SHODAN_API_KEY", "")
@@ -915,6 +915,7 @@ def build_fallback_map(content):
     headers = re.findall(r"^([A-Za-z0-9-]+):\s*", content, re.M)
     tokens = re.findall(r"(?:bearer|token|api[_-]?key|authorization)\s*[=:]\s*([A-Za-z0-9._-]{10,})", content, re.I)
     ips = re.findall(r"\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b", content)
+    methods = re.findall(r"\b(GET|POST|PUT|DELETE|PATCH)\b", content, re.I)
 
     nodes = [{"id": "attacker", "type": "Attacker", "label": "Attacker Input", "x": 5, "y": 40}]
     links = []
@@ -963,6 +964,14 @@ def build_fallback_map(content):
         "rfi": "RFI", "remote file inclusion": "RFI",
         "directory traversal": "Path Traversal", "path traversal": "Path Traversal",
         "cors": "CORS Misconfiguration", "access-control-allow-origin": "CORS",
+        "password": "Credential", "secret": "Secret Key", "private key": "Crypto Key",
+        "database": "Database", "mysql": "Database", "postgres": "Database",
+        "redis": "Cache", "mongodb": "Database", "sqlite": "Database",
+        "upload": "Upload", "exec": "Command Exec", "eval(": "Code Exec",
+        "system(": "Command Exec", "os.popen": "Command Exec",
+        "innerHTML": "DOM Sink", "document.cookie": "Cookie Steal",
+        "window.location": "Redirect", "eval": "Code Eval",
+        "password=": "Credential", "secret=": "Secret", "key=": "API Key",
     }
     found = []
     for k, v in vuln_kws.items():
@@ -972,6 +981,7 @@ def build_fallback_map(content):
         nodes.append({"id": sink_id, "type": "Vulnerability", "label": " / ".join(found[:4]), "x": 80, "y": 40})
         links.append({"from": entry, "to": sink_id})
 
+    # Always build a reason and entities even if nothing was detected
     reason_parts = []
     if hosts: reason_parts.append(f"<b>Hosts detected:</b> {', '.join(hosts[:4])}")
     if paths: reason_parts.append(f"<b>Endpoints:</b> {', '.join(paths[:5])}")
@@ -979,7 +989,10 @@ def build_fallback_map(content):
     if headers: reason_parts.append(f"<b>Headers:</b> {', '.join(headers[:5])}")
     if tokens: reason_parts.append(f"<b>Tokens/Keys:</b> {len(tokens)} credential(s) found")
     if found: reason_parts.append(f"<b>Vulnerability sinks:</b> {' / '.join(found[:4])}")
-    if not reason_parts: reason_parts.append("No specific patterns detected — manual review recommended.")
+    if ips: reason_parts.append(f"<b>IP addresses:</b> {', '.join(ips[:3])}")
+    if methods: reason_parts.append(f"<b>HTTP methods:</b> {', '.join(set(m.upper() for m in methods[:5]))}")
+    if not reason_parts:
+        reason_parts.append(f"Content analyzed ({len(content)} chars). Detected {len(urls)} URL(s), {len(paths)} endpoint(s), {len(params)} parameter(s), {len(tokens)} token(s), {len(ips)} IP(s). Add API keys or paste HTTP traffic for richer visual maps.")
     reason = "<br>".join(reason_parts)
 
     entities = []
@@ -994,6 +1007,8 @@ def build_fallback_map(content):
         entities.append({"type": "Token", "val": masked})
     for ip in ips[:3]:
         entities.append({"type": "IP Address", "val": ip})
+    if not entities:
+        entities.append({"type": "Info", "val": f"Content length: {len(content)} chars"})
 
     return {"reasoning": reason, "nodes": nodes, "links": links, "entities": entities[:15]}
 
@@ -1774,7 +1789,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             p = self.path.split("?")[0].rstrip("/")
             if self._reject_disabled(p): return
             if p in ("", "/"): return self.send_html(get_frontend_html())
-            if p == "/api/bounty":         return self.send_json(self._health())
+            if p in ("/api/bounty", "/api/health"):  return self.send_json(self._health())
             if p == "/api/stats":          return self.send_json(self._stats())
             if p == "/api/programs":       return self.send_json(self._programs())
             if p == "/api/findings":       return self.send_json(self._findings())
