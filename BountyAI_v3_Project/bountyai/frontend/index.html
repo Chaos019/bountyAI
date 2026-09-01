@@ -521,6 +521,7 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
     <button class="ntab" onclick="go('report')" id="tab-report"><span class="ndot"></span><span>📄 AI Report Generator</span></button>
     <button class="ntab" onclick="go('prog')" id="tab-prog"><span class="ndot"></span><span>🎯 Target Scopes</span></button>
     <button class="ntab" onclick="go('learn')" id="tab-learn"><span class="ndot"></span><span>📚 Learning Path</span></button>
+    <button class="ntab" onclick="go('admin')" id="tab-admin" style="display:none"><span class="ndot"></span><span>🛡 Admin Panel</span></button>
 
   </div>
   <div class="tbr">
@@ -1117,6 +1118,48 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
   </div>
 </div></div>
 
+<!-- ══════════════════════════ ADMIN PANEL ══════════════════════════ -->
+<div id="panel-admin" class="panel"><div class="pg">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <div class="sl" style="margin:0">🛡 Admin Control Panel</div>
+    <div style="font-size:10px;color:var(--t3)">All users, findings, and system activity</div>
+  </div>
+
+  <div id="admin-stats-grid" class="kpirow" style="margin-bottom:16px"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <div class="card" style="padding:14px">
+      <div style="font-weight:700;font-size:12px;color:var(--red);margin-bottom:10px">👥 Users (<span id="admin-user-count">0</span>)</div>
+      <div id="admin-users-table" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="font-weight:700;font-size:12px;color:var(--lime);margin-bottom:10px">🔍 Findings by User</div>
+      <div id="admin-findings-by-user" style="max-height:300px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <div class="card" style="padding:14px">
+      <div style="font-weight:700;font-size:12px;color:var(--cyan);margin-bottom:10px">📊 Severity Breakdown</div>
+      <div id="admin-severity-chart"></div>
+    </div>
+    <div class="card" style="padding:14px">
+      <div style="font-weight:700;font-size:12px;color:var(--orange);margin-bottom:10px">📋 Status Breakdown</div>
+      <div id="admin-status-chart"></div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:14px;margin-bottom:16px">
+    <div style="font-weight:700;font-size:12px;color:var(--purple);margin-bottom:10px">📝 Recent Findings (All Users)</div>
+    <div id="admin-recent-findings" style="max-height:250px;overflow-y:auto"></div>
+  </div>
+
+  <div class="card" style="padding:14px">
+    <div style="font-weight:700;font-size:12px;color:var(--yellow);margin-bottom:10px">📜 Activity Log</div>
+    <div id="admin-activity-log" style="max-height:250px;overflow-y:auto;color:var(--t2);font-size:11px"></div>
+  </div>
+</div></div>
+
 <div id="toast" class="toast" style="display:none"></div>
 
 <script>
@@ -1125,7 +1168,7 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
 // ──────────────────────────────────────────────────────────────────────
 // CORE STATE
 // ──────────────────────────────────────────────────────────────────────
-var TABS = ['dash','lab','recon','log','report','prog','learn','conn','glab','disclose','ml','nuclei'];
+var TABS = ['dash','lab','recon','log','report','prog','learn','conn','glab','disclose','ml','nuclei','admin'];
 var pfilt = '', allFindings = [], selFid = 0, lastMd = '';
 var SN = {C:'CRITICAL',H:'HIGH',M:'MEDIUM',L:'LOW'};
 var SC = {C:'var(--red)',H:'var(--orange)',M:'var(--yellow)',L:'var(--lime)'};
@@ -1245,6 +1288,8 @@ function checkGoogleCallback() {
 function updateUserPill() {
   var pill = document.getElementById('user-pill');
   if (!pill) return;
+  var adminTab = document.getElementById('tab-admin');
+  if (adminTab) adminTab.style.display = (authUser && authUser.role === 'admin') ? '' : 'none';
   if (authUser) {
     var roleCls = 'urole-' + authUser.role;
     pill.innerHTML = '<span class="urole ' + roleCls + '">' + authUser.role + '</span><span>' + authUser.username + '</span><button class="btn-logout" onclick="doLogout()">Logout</button>';
@@ -1310,6 +1355,7 @@ function go(id) {
     if ((id === 'log' || id === 'report' || origId === 'log' || origId === 'report') && typeof loadFindings === 'function') loadFindings();
     if (id === 'conn' && typeof renderIntegrations === 'function') renderIntegrations();
     if (id === 'disclose') { if (typeof loadDisclosures === 'function') loadDisclosures(); if (typeof renderCollaborators === 'function') renderCollaborators(); }
+    if (id === 'admin' && typeof loadAdminPanel === 'function') loadAdminPanel();
   } catch(e) { console.warn('Tab load warning:', e); }
 }
 window.go = go;
@@ -2024,6 +2070,99 @@ function updateGlobalProgress() {
   var fill = document.getElementById('gprog_fill'); if(fill) fill.style.width = pct+'%';
   var text = document.getElementById('gprog_text'); if(text) text.textContent = pct+'%';
   var big = document.getElementById('gprog_big'); if(big) big.textContent = pct+'%';
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// ADMIN PANEL
+// ──────────────────────────────────────────────────────────────────────
+function loadAdminPanel(){
+  Promise.all([api('GET','/admin/stats'), api('GET','/admin/users'), api('GET','/admin/activity')]).then(function(res){
+    var stats=res[0], users=res[1], activity=res[2];
+    // KPI cards
+    var kpiHtml='<div class="kpi kl"><div class="kv" style="color:var(--lime)">'+stats.total_users+'</div><div class="kl2">TOTAL USERS</div><div class="ks2">'+stats.active_users+' active</div></div>'
+      +'<div class="kpi kc"><div class="kv" style="color:var(--cyan)">'+stats.total_findings+'</div><div class="kl2">TOTAL FINDINGS</div><div class="ks2">all users</div></div>'
+      +'<div class="kpi kr"><div class="kv" style="color:var(--red)">'+((stats.findings_by_severity&&stats.findings_by_severity.C)||0)+'</div><div class="kl2">CRITICAL</div><div class="ks2">CVSS 9.0+</div></div>'
+      +'<div class="kpi kb"><div class="kv" style="color:var(--yellow)">'+stats.total_programs+'</div><div class="kl2">PROGRAMS</div><div class="ks2">synced</div></div>';
+    var ksEl=document.getElementById('admin-stats-grid');if(ksEl)ksEl.innerHTML=kpiHtml;
+    // Users table
+    var ut=document.getElementById('admin-user-count');if(ut)ut.textContent=stats.total_users;
+    var utbl=document.getElementById('admin-users-table');
+    if(utbl&&users.users) utbl.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:11px"><tr style="color:var(--t3);border-bottom:1px solid var(--ln)"><th style="text-align:left;padding:6px 4px">User</th><th style="text-align:left;padding:6px 4px">Role</th><th style="text-align:left;padding:6px 4px">Status</th><th style="text-align:right;padding:6px 4px">Actions</th></tr>'
+      +users.users.map(function(u){
+        var roleColor=u.role==='admin'?'var(--red)':u.role==='analyst'?'var(--orange)':'var(--cyan)';
+        var statusDot=u.is_active?'var(--lime)':'var(--red)';
+        var statusLabel=u.is_active?'ACTIVE':'DISABLED';
+        return '<tr style="border-bottom:1px solid var(--ln)"><td style="padding:6px 4px"><div style="font-weight:600">'+u.username+'</div><div style="font-size:9px;color:var(--t3)">'+(u.email||'')+'</div></td>'
+          +'<td style="padding:6px 4px"><span style="color:'+roleColor+';font-weight:600;text-transform:uppercase;font-size:10px">'+u.role+'</span></td>'
+          +'<td style="padding:6px 4px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:10px"><span style="width:6px;height:6px;border-radius:50%;background:'+statusDot+'"></span>'+statusLabel+'</span></td>'
+          +'<td style="padding:6px 4px;text-align:right">'
+          +(u.username!=='admin'?'<button class="btn bdim bxs" onclick="adminToggleUser('+u.id+','+u.is_active+')" style="margin-right:4px">'+(u.is_active?'Disable':'Enable')+'</button>'
+            +'<select style="background:var(--bg3);color:var(--t2);border:1px solid var(--ln);border-radius:3px;padding:2px 4px;font-size:9px" onchange="adminChangeRole('+u.id+',this.value)">'
+            +'<option value="admin"'+(u.role==='admin'?' selected':'')+'>admin</option>'
+            +'<option value="analyst"'+(u.role==='analyst'?' selected':'')+'>analyst</option>'
+            +'<option value="viewer"'+(u.role==='viewer'?' selected':'')+'>viewer</option>'
+            +'</select>'
+            +'<button class="btn bred bxs" onclick="adminDeleteUser('+u.id+',\''+u.username+'\')">✕</button>'
+            :'<span style="font-size:9px;color:var(--t3)">protected</span>')
+          +'</td></tr>';
+      }).join('')+'</table>';
+    // Findings by user
+    var fbu=document.getElementById('admin-findings-by-user');
+    if(fbu&&stats.findings_by_user) fbu.innerHTML=stats.findings_by_user.length?stats.findings_by_user.map(function(r){
+      var pct=stats.total_findings>0?Math.round(r.count/stats.total_findings*100):0;
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span>'+r.username+'</span><span style="color:var(--t3)">'+r.count+' findings</span></div>'
+        +'<div class="ob"><div class="obf" style="width:'+pct+'%;background:linear-gradient(90deg,var(--cyan),var(--lime))"></div></div></div>';
+    }).join(''):'<div style="color:var(--t3);font-size:11px;text-align:center">No findings yet</div>';
+    // Severity chart
+    var sc=document.getElementById('admin-severity-chart');
+    var sevColors={C:'var(--red)',H:'var(--orange)',M:'var(--yellow)',L:'var(--cyan)'};
+    var sevNames={C:'Critical',H:'High',M:'Medium',L:'Low'};
+    if(sc&&stats.findings_by_severity) sc.innerHTML=['C','H','M','L'].map(function(s){
+      var c=stats.findings_by_severity[s]||0;
+      var pct=stats.total_findings>0?Math.round(c/stats.total_findings*100):0;
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:'+sevColors[s]+'">'+sevNames[s]+'</span><span style="color:var(--t3)">'+c+' ('+pct+'%)</span></div>'
+        +'<div class="ob"><div class="obf" style="width:'+pct+'%;background:'+sevColors[s]+'"></div></div></div>';
+    }).join('');
+    // Status chart
+    var stc=document.getElementById('admin-status-chart');
+    var statusColors={draft:'var(--t3)',submitted:'var(--cyan)',accepted:'var(--lime)',rejected:'var(--red)'};
+    if(stc&&stats.findings_by_status) stc.innerHTML=['draft','submitted','accepted','rejected'].map(function(s){
+      var c=stats.findings_by_status[s]||0;
+      var pct=stats.total_findings>0?Math.round(c/stats.total_findings*100):0;
+      return '<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:'+statusColors[s]+';text-transform:capitalize">'+s+'</span><span style="color:var(--t3)">'+c+' ('+pct+'%)</span></div>'
+        +'<div class="ob"><div class="obf" style="width:'+pct+'%;background:'+statusColors[s]+'"></div></div></div>';
+    }).join('');
+    // Recent findings
+    var rf=document.getElementById('admin-recent-findings');
+    if(rf&&stats.recent_findings) rf.innerHTML=stats.recent_findings.length?stats.recent_findings.map(function(f){
+      var sevColor=sevColors[f.severity]||'var(--t3)';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--ln);font-size:11px">'
+        +'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+sevColor+';flex-shrink:0"></span>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+f.vuln_type+'</div>'
+        +'<div style="font-size:9px;color:var(--t3)">'+(f.program_name||'')+' · by '+(f.username||'unknown')+'</div></div>'
+        +'<span style="color:'+sevColor+';font-size:10px;font-weight:600">'+f.severity+'</span>'
+        +'<span style="font-size:10px;text-transform:capitalize;color:var(--t3)">'+f.status+'</span>'
+        +'<span style="font-size:9px;color:var(--t3)">'+ago(f.created_at)+'</span></div>';
+    }).join(''):'<div style="color:var(--t3);font-size:11px;text-align:center">No findings yet</div>';
+    // Activity log
+    var al=document.getElementById('admin-activity-log');
+    if(al&&activity.activity) al.innerHTML=activity.activity.length?activity.activity.map(function(l){
+      var sev=l.severity==='critical'?'var(--red)':l.severity==='high'?'var(--orange)':l.severity==='medium'?'var(--yellow)':'var(--cyan)';
+      return '<div style="padding:5px 0;border-bottom:1px solid var(--ln)"><span style="color:'+sev+';font-weight:600;text-transform:uppercase;font-size:9px">'+l.event_type+'</span> '
+        +'<span>'+l.description+'</span> <span style="color:var(--t3);font-size:9px">'+ago(l.created_at)+'</span></div>';
+    }).join(''):'<div style="text-align:center;color:var(--t3)">No activity recorded yet</div>';
+  }).catch(function(e){console.error('Admin panel error',e);showToast('Failed to load admin data','err');});
+}
+
+function adminToggleUser(uid, isActive){
+  api('PUT','/admin/users/'+uid,{is_active:isActive?0:1}).then(function(){showToast(isActive?'User disabled':'User enabled');loadAdminPanel();}).catch(function(e){showToast('Error: '+e.message,'err');});
+}
+function adminChangeRole(uid, role){
+  api('PUT','/admin/users/'+uid+'/role',{role:role}).then(function(){showToast('Role updated to '+role);loadAdminPanel();}).catch(function(e){showToast('Error: '+e.message,'err');});
+}
+function adminDeleteUser(uid, name){
+  if(!confirm('Delete user "'+name+'"? This cannot be undone.'))return;
+  api('DELETE','/admin/users/'+uid).then(function(){showToast('User deleted');loadAdminPanel();}).catch(function(e){showToast('Error: '+e.message,'err');});
 }
 
 // ──────────────────────────────────────────────────────────────────────

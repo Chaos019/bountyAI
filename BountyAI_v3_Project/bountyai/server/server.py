@@ -1757,6 +1757,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if p == "/api/auth/google/callback": return self._google_callback()
         if p == "/api/export/csv":     return self.send_json(self._export_csv())
         if p == "/api/export/json":    return self.send_json(self._export_json())
+        if p == "/api/admin/users":    return self.send_json(self._admin_users())
+        if p == "/api/admin/stats":    return self.send_json(self._admin_stats())
+        if p == "/api/admin/activity": return self.send_json(self._admin_activity())
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._get_finding(int(p.split("/")[-1])))
         if re.match(r"^/api/reports/\d+$", p):  return self.send_json(self._get_report(int(p.split("/")[-1])))
         self.send_html(get_frontend_html())
@@ -1805,11 +1808,17 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._update_finding(int(p.split("/")[-1]), body))
         if re.match(r"^/api/disclosures/\d+/advance$", p):
             return self.send_json(self._advance_disclosure(int(p.split("/")[-2])))
+        if re.match(r"^/api/admin/users/\d+/role$", p):
+            return self.send_json(self._admin_update_role(int(p.split("/")[-3]), body))
+        if re.match(r"^/api/admin/users/\d+$", p):
+            return self.send_json(self._admin_toggle_user(int(p.split("/")[-1]), body))
         self.send_json({"error": "not found"}, 404)
 
     def do_DELETE(self):
         p = self.path.rstrip("/")
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._delete_finding(int(p.split("/")[-1])))
+        if re.match(r"^/api/admin/users/\d+$", p):
+            return self.send_json(self._admin_delete_user(int(p.split("/")[-1])))
         self.send_json({"error": "not found"}, 404)
 
     # ── ENDPOINT HANDLERS ─────────────────────────────────────
@@ -2367,6 +2376,82 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return {"status": "error", "message": "Failed to clone nuclei-templates. Is git installed?"}
     def _export_csv(self): return {"csv": "id,title,severity\n"}
     def _export_json(self): return {"json": "[]"}
+
+    # ── ADMIN PANEL ENDPOINTS ─────────────────────────────────
+    def _admin_users(self):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        conn = get_db()
+        users = conn.execute("SELECT id, username, email, role, is_active, created_at FROM users ORDER BY id").fetchall()
+        conn.close()
+        return {"users": [{"id":u["id"],"username":u["username"],"email":u["email"],"role":u["role"],"is_active":bool(u["is_active"]),"created_at":u["created_at"]} for u in users]}
+
+    def _admin_stats(self):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        conn = get_db()
+        total_users = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
+        active_users = conn.execute("SELECT COUNT(*) c FROM users WHERE is_active=1").fetchone()["c"]
+        total_findings = conn.execute("SELECT COUNT(*) c FROM findings").fetchone()["c"]
+        findings_by_user = conn.execute("SELECT u.username, COUNT(f.id) cnt FROM users u LEFT JOIN findings f ON u.id=f.user_id GROUP BY u.id ORDER BY cnt DESC").fetchall()
+        findings_by_sev = conn.execute("SELECT severity, COUNT(*) c FROM findings GROUP BY severity").fetchall()
+        findings_by_status = conn.execute("SELECT status, COUNT(*) c FROM findings GROUP BY status").fetchall()
+        total_earned = conn.execute("SELECT COALESCE(SUM(payout_amount),0) c FROM findings").fetchone()["c"]
+        recent_findings = conn.execute("SELECT f.id, f.vuln_type, f.severity, f.status, f.program_name, f.user_id, u.username, f.created_at FROM findings f LEFT JOIN users u ON f.user_id=u.id ORDER BY f.created_at DESC LIMIT 10").fetchall()
+        total_programs = conn.execute("SELECT COUNT(*) c FROM programs").fetchone()["c"]
+        conn.close()
+        return {
+            "total_users": total_users, "active_users": active_users,
+            "total_findings": total_findings, "total_earned": total_earned,
+            "total_programs": total_programs,
+            "findings_by_user": [{"username":r["username"] or "unknown","count":r["cnt"]} for r in findings_by_user],
+            "findings_by_severity": {r["severity"]:r["c"] for r in findings_by_sev},
+            "findings_by_status": {r["status"]:r["c"] for r in findings_by_status},
+            "recent_findings": [{"id":r["id"],"vuln_type":r["vuln_type"],"severity":r["severity"],"status":r["status"],"program_name":r["program_name"],"username":r["username"],"created_at":r["created_at"]} for r in recent_findings],
+        }
+
+    def _admin_activity(self):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        conn = get_db()
+        logs = conn.execute("SELECT id, event_type, description, severity, created_at FROM activity_log ORDER BY created_at DESC LIMIT 50").fetchall()
+        conn.close()
+        return {"activity": [{"id":l["id"],"event_type":l["event_type"],"description":l["description"],"severity":l["severity"],"created_at":l["created_at"]} for l in logs]}
+
+    def _admin_update_role(self, uid, body):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        new_role = body.get("role", "").strip()
+        if new_role not in ("admin", "analyst", "viewer"):
+            return {"error": "Invalid role"}
+        conn = get_db()
+        conn.execute("UPDATE users SET role=? WHERE id=?", (new_role, uid))
+        conn.commit()
+        conn.close()
+        return {"ok": True, "message": f"Role updated to {new_role}"}
+
+    def _admin_toggle_user(self, uid, body):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        active = body.get("is_active", 1)
+        conn = get_db()
+        conn.execute("UPDATE users SET is_active=? WHERE id=?", (int(active), uid))
+        conn.commit()
+        conn.close()
+        return {"ok": True}
+
+    def _admin_delete_user(self, uid):
+        user, err = require_role(self, "admin")
+        if err: return err[0]
+        target = get_db().execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
+        if not target: return {"error": "User not found"}
+        if target["username"] == "admin": return {"error": "Cannot delete admin user"}
+        conn = get_db()
+        conn.execute("DELETE FROM users WHERE id=?", (uid,))
+        conn.commit()
+        conn.close()
+        return {"ok": True, "message": f"User {target['username']} deleted"}
+
     def _register_user(self, body):
         username = (body.get("username") or "").strip()
         password = body.get("password") or ""
