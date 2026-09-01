@@ -2496,7 +2496,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             conn.commit()
             uid = cur.lastrowid
             token = create_token(username, role, uid)
-            return {"token": token, "username": username, "role": role, "email": email}
+            return {"token": token, "username": username, "role": role, "email": email, "uid": uid}
         except sqlite3.IntegrityError:
             return {"error": "Username or email already exists"}
         finally:
@@ -2515,7 +2515,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         if not user["is_active"]:
             return {"error": "Account is disabled"}
         token = create_token(user["username"], user["role"], user["id"])
-        return {"token": token, "username": user["username"], "role": user["role"], "email": user["email"]}
+        return {"token": token, "username": user["username"], "role": user["role"], "email": user["email"], "uid": user["id"]}
     def _ml_predict(self, body): return predict_vulns(body.get("domain",""), body.get("tech_stack"))
 
 # ── FRONTEND HTML ─────────────────────────────────────────────
