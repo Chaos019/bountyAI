@@ -922,12 +922,7 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
   </div>
 
   <div class="sl">Learning Path Modules</div>
-  <div class="mgrid">
-    <div class="mcard done"><div class="mcnum">01</div><div class="mcwk">Week 1–2</div><div class="mctitle">Web Fundamentals</div><div class="mcdesc">HTTP/HTTPS, cookies, sessions, headers, DevTools, Burp Suite interception.</div><div class="mctags"><span class="mctag">HTTP/HTTPS</span><span class="mctag">Cookies</span><span class="mctag">Burp Suite</span></div><div class="mcbar"><div class="mcfill" style="width:100%"></div></div><div class="mcst" style="color:var(--lime)">✓ COMPLETED</div></div>
-    <div class="mcard"><div class="mcnum">02</div><div class="mcwk">Week 3–5</div><div class="mctitle">OWASP Top 10</div><div class="mcdesc">SQLi, XSS, CSRF, IDOR, SSRF, broken auth — with PortSwigger labs.</div><div class="mctags"><span class="mctag">SQLi</span><span class="mctag">XSS</span><span class="mctag">IDOR</span><span class="mctag">SSRF</span></div><div class="mcbar"><div class="mcfill" style="width:70%"></div></div><div class="mcst" style="color:var(--cyan)">IN PROGRESS — 70%</div></div>
-    <div class="mcard"><div class="mcnum">03</div><div class="mcwk">Week 6–7</div><div class="mctitle">Recon Techniques</div><div class="mcdesc">Subdomain enumeration, Shodan, Google dorking, passive OSINT, crt.sh.</div><div class="mctags"><span class="mctag">Shodan</span><span class="mctag">crt.sh</span><span class="mctag">OSINT</span></div><div class="mcbar"><div class="mcfill" style="width:0%"></div></div><div class="mcst" style="color:var(--t3)">NOT STARTED</div></div>
-    <div class="mcard"><div class="mcnum">04</div><div class="mcwk">Week 8–10</div><div class="mctitle">First Bug Bounty</div><div class="mcdesc">Pick a program, hunt first bug, write a HackerOne report, handle triage.</div><div class="mctags"><span class="mctag">HackerOne</span><span class="mctag">Reports</span><span class="mctag">CVSS</span></div><div class="mcbar"><div class="mcfill" style="width:0%"></div></div><div class="mcst" style="color:var(--t3)">NOT STARTED</div></div>
-  </div>
+  <div class="mgrid" id="learning-modules-grid"></div>
 
   <!-- VIDEO COURSES SECTION -->
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -1135,7 +1130,7 @@ var pfilt = '', allFindings = [], selFid = 0, lastMd = '';
 var SN = {C:'CRITICAL',H:'HIGH',M:'MEDIUM',L:'LOW'};
 var SC = {C:'var(--red)',H:'var(--orange)',M:'var(--yellow)',L:'var(--lime)'};
 var cachedProgs = [], currVulns = [], allResources = [], resCatFilter = 'all';
-var courseProgress = {};
+var courseProgress = (function(){ try { return JSON.parse(localStorage.getItem('bountyai_courses') || '{}'); } catch(e){ return {}; } })();
 var connectedPlatforms = {};
 var currentAutonomy = 3;
 var currentAgent = 'bb';
@@ -1311,7 +1306,7 @@ function go(id) {
     if ((id === 'prog' || origId === 'prog') && typeof loadProgs === 'function') loadProgs();
     if ((id === 'nuclei' || origId === 'nuclei') && typeof loadNucleiTemplates === 'function') loadNucleiTemplates();
     if (id === 'ml') { var el = document.getElementById('ml-results'); if (el) el.innerHTML = '<div style="color:var(--t3);text-align:center;padding:20px">Enter domain and tech stack above</div>'; }
-    if (id === 'learn' || origId === 'learn') { if (typeof loadLearning === 'function') loadLearning(); if (typeof renderCourses === 'function') renderCourses(); if (typeof allResources !== 'undefined' && !allResources.length) loadResources(); }
+    if (id === 'learn' || origId === 'learn') { if (typeof loadLearning === 'function') loadLearning(); if (typeof renderCourses === 'function') renderCourses(); if (typeof renderLearningModules === 'function') renderLearningModules(); if (typeof updateGlobalProgress === 'function') updateGlobalProgress(); if (typeof allResources !== 'undefined' && !allResources.length) loadResources(); }
     if ((id === 'log' || id === 'report' || origId === 'log' || origId === 'report') && typeof loadFindings === 'function') loadFindings();
     if (id === 'conn' && typeof renderIntegrations === 'function') renderIntegrations();
     if (id === 'disclose') { if (typeof loadDisclosures === 'function') loadDisclosures(); if (typeof renderCollaborators === 'function') renderCollaborators(); }
@@ -1831,7 +1826,7 @@ function saveFinding(){
   var steps=document.getElementById('fvsteps').value;
   if(!desc||!steps){showToast('Description and Steps are required','err');return;}
   api('POST','/findings',{vuln_type:document.getElementById('fvt').value,severity:sev,program_name:document.getElementById('fvp').value,target_domain:document.getElementById('fvd').value,affected_url:document.getElementById('fvu').value,description:desc,steps_to_reproduce:steps,impact:document.getElementById('fvimpact').value})
-    .then(function(r){showToast('Saved! CVSS '+r.cvss.score+' '+r.cvss.severity);loadFindings();})
+    .then(function(r){showToast('Saved! CVSS '+r.cvss.score+' '+r.cvss.severity);loadFindings();loadDash();})
     .catch(function(e){showToast('Error: '+e.message,'err');});
 }
 function loadFindings(){
@@ -1859,7 +1854,7 @@ function renderRFL(){
   }).join('');
 }
 function loadF(i){var f=allFindings[i];if(!f)return;document.getElementById('fvt').value=f.vuln_type||'';document.getElementById('fvs').value=f.severity||'M';document.getElementById('fvp').value=f.program_name||'';document.getElementById('fvd').value=f.target_domain||'';document.getElementById('fvu').value=f.affected_url||'';document.getElementById('fvdesc').value=f.description||'';document.getElementById('fvsteps').value=f.steps_to_reproduce||'';document.getElementById('fvimpact').value=f.impact||'';recalc();}
-function delF(id){if(!confirm('Delete this finding?'))return;api('DELETE','/findings/'+id).then(function(){showToast('Deleted');loadFindings();}).catch(function(e){showToast('Error: '+e.message,'err');});}
+function delF(id){if(!confirm('Delete this finding?'))return;api('DELETE','/findings/'+id).then(function(){showToast('Deleted');loadFindings();loadDash();}).catch(function(e){showToast('Error: '+e.message,'err');});}
 function goRep(id){selFid=id;go('report');setTimeout(trigGen,500);}
 function selR(id){selFid=id;document.querySelectorAll('.rsf').forEach(function(e){e.classList.remove('on');});var el=document.getElementById('rsf-'+id);if(el)el.classList.add('on');}
 function ago(ts){if(!ts)return 'just now';var d=new Date(ts),n=new Date(),s=Math.floor((n-d)/1000);if(s<60)return 'just now';if(s<3600)return Math.floor(s/60)+'m ago';if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';}
@@ -2011,15 +2006,21 @@ function completeCourse(id, evt) {
   if ((state.pct || 0) < 100 && !state.done) { showToast('Finish the course first! Progress: '+(state.pct||0)+'%', 'err'); return; }
   if (state.interval) { clearInterval(state.interval); state.interval = null; }
   courseProgress[id] = {pct:100, done:true, interval:null};
+  try { var toStore = {}; Object.keys(courseProgress).forEach(function(k){ var s = courseProgress[k]; toStore[k] = {pct:s.pct, done:s.done}; }); localStorage.setItem('bountyai_courses', JSON.stringify(toStore)); } catch(e){}
   updateGlobalProgress();
   showToast('🏆 Course completed! Progress updated!', 'ok');
   renderCourses();
 }
 
 function updateGlobalProgress() {
-  var total = COURSES.length;
-  var done = Object.values(courseProgress).filter(function(s){ return s && s.done; }).length;
-  var pct = Math.min(100, Math.round((done/total)*100));
+  var courseTotal = COURSES.length;
+  var courseDone = Object.values(courseProgress).filter(function(s){ return s && s.done; }).length;
+  var mp = getModuleProgress();
+  var modTotal = LEARNING_MODULES.length;
+  var modDone = LEARNING_MODULES.filter(function(m){ return (mp[m.id]||0) >= 100; }).length;
+  var total = courseTotal + modTotal;
+  var done = courseDone + modDone;
+  var pct = total > 0 ? Math.min(100, Math.round((done/total)*100)) : 0;
   var fill = document.getElementById('gprog_fill'); if(fill) fill.style.width = pct+'%';
   var text = document.getElementById('gprog_text'); if(text) text.textContent = pct+'%';
   var big = document.getElementById('gprog_big'); if(big) big.textContent = pct+'%';
@@ -2410,6 +2411,63 @@ function loadLearning(){
         if(list) list.innerHTML = '<div style="color:var(--t3);text-align:center">Error loading: '+e.message+'</div>';
     });
 }
+
+// ── Learning Path Modules (persisted to localStorage) ──
+var LEARNING_MODULES = [
+  {id:'mod1',num:'01',week:'Week 1–2',title:'Web Fundamentals',desc:'HTTP/HTTPS, cookies, sessions, headers, DevTools, Burp Suite interception.',tags:['HTTP/HTTPS','Cookies','Burp Suite']},
+  {id:'mod2',num:'02',week:'Week 3–5',title:'OWASP Top 10',desc:'SQLi, XSS, CSRF, IDOR, SSRF, broken auth — with PortSwigger labs.',tags:['SQLi','XSS','IDOR','SSRF']},
+  {id:'mod3',num:'03',week:'Week 6–7',title:'Recon Techniques',desc:'Subdomain enumeration, Shodan, Google dorking, passive OSINT, crt.sh.',tags:['Shodan','crt.sh','OSINT']},
+  {id:'mod4',num:'04',week:'Week 8–10',title:'First Bug Bounty',desc:'Pick a program, hunt first bug, write a HackerOne report, handle triage.',tags:['HackerOne','Reports','CVSS']}
+];
+
+function getModuleProgress(){
+  try { return JSON.parse(localStorage.getItem('bountyai_modules') || '{}'); } catch(e){ return {}; }
+}
+function setModuleProgress(mp){
+  try { localStorage.setItem('bountyai_modules', JSON.stringify(mp)); } catch(e){}
+}
+
+function renderLearningModules(){
+  var grid = document.getElementById('learning-modules-grid');
+  if(!grid) return;
+  var mp = getModuleProgress();
+  grid.innerHTML = LEARNING_MODULES.map(function(m){
+    var pct = mp[m.id] || 0;
+    var isDone = pct >= 100;
+    var isStarted = pct > 0 && !isDone;
+    var cls = isDone ? ' done' : '';
+    var statusHtml = isDone
+      ? '<div class="mcst" style="color:var(--lime)">✓ COMPLETED</div>'
+      : isStarted
+        ? '<div class="mcst" style="color:var(--cyan)">IN PROGRESS — '+pct+'%</div>'
+        : '<div class="mcst" style="color:var(--t3)">NOT STARTED</div>';
+    return '<div class="mcard'+cls+'" onclick="startModule(\''+m.id+'\')" style="cursor:pointer">'
+      + '<div class="mcnum">'+m.num+'</div><div class="mcwk">'+m.week+'</div>'
+      + '<div class="mctitle">'+m.title+'</div><div class="mcdesc">'+m.desc+'</div>'
+      + '<div class="mctags">'+m.tags.map(function(t){return '<span class="mctag">'+t+'</span>';}).join('')+'</div>'
+      + '<div class="mcbar"><div class="mcfill" style="width:'+pct+'%"></div></div>'
+      + statusHtml + '</div>';
+  }).join('');
+}
+
+function startModule(id){
+  var mp = getModuleProgress();
+  var pct = mp[id] || 0;
+  if(pct >= 100){
+    mp[id] = 0;
+    showToast('Module reset — start fresh!');
+  } else if(pct === 0){
+    mp[id] = 50;
+    showToast('Module started — mark as complete when done!');
+  } else {
+    mp[id] = 100;
+    showToast('Module completed! ✓');
+  }
+  setModuleProgress(mp);
+  renderLearningModules();
+  updateGlobalProgress();
+}
+
 function loadNucleiTemplates(){
   api('GET','/nuclei/templates').then(function(r){
         var critical = document.getElementById('nuclei-critical');
@@ -3162,6 +3220,8 @@ if (checkAuthToken()) {
 }
 checkHealth();
 loadDash();
+if (typeof renderLearningModules === 'function') renderLearningModules();
+if (typeof updateGlobalProgress === 'function') updateGlobalProgress();
 setInterval(checkHealth, 30000);
 </script>
 </body>
