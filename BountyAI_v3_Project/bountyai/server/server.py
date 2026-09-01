@@ -1712,6 +1712,8 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         print(f"  [{datetime.datetime.now().strftime('%H:%M:%S')}] {fmt%args}")
 
     def send_json(self, data, status=200):
+        if isinstance(data, tuple) and len(data) == 2:
+            data, status = data[0], data[1]
         body = json.dumps(data, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
