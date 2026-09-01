@@ -1861,7 +1861,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _stats(self):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         conn = get_db()
         if uid:
             findings = conn.execute("SELECT severity, status, payout_amount FROM findings WHERE user_id=?", (uid,)).fetchall()
@@ -1939,7 +1941,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _findings(self):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         conn = get_db()
         if uid:
             rows = conn.execute("SELECT * FROM findings WHERE user_id=? ORDER BY created_at DESC", (uid,)).fetchall()
@@ -1955,7 +1959,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _get_finding(self, fid):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         conn = get_db()
         if uid:
             r = conn.execute("SELECT * FROM findings WHERE id=? AND user_id=?", (fid, uid)).fetchone()
@@ -1969,7 +1975,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _create_finding(self, body):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         cvss = calculate_cvss(body.get("severity","M"), body.get("vuln_type",""), body.get("impact",""))
         title = body.get("title","") or f"{body.get('vuln_type','Vulnerability')} in {body.get('target_domain','target')}"
         conn = get_db()
@@ -1986,7 +1994,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _update_finding(self, fid, body):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         conn = get_db()
         row = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
         if not row:
@@ -2007,7 +2017,9 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def _delete_finding(self, fid):
         user = get_current_user(self)
-        uid = user.get("uid") if user else None
+        if not user:
+            return {"error": "Authentication required"}, 401
+        uid = user.get("uid")
         conn = get_db()
         row = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
         if not row:
