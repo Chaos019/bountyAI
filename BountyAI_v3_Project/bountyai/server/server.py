@@ -1750,8 +1750,24 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    _PUBLIC_PATHS = {"/api/bounty", "/api/auth/login", "/api/auth/register", "/api/auth/google",
+                     "/api/auth/google/callback", "/api/learning", "/api/nuclei/templates"}
+
+    def _reject_disabled(self, path):
+        """Check if a disabled user is trying to access a protected endpoint. Returns True and sends 401 if blocked."""
+        if path in self._PUBLIC_PATHS or path.startswith("/api/auth/"):
+            return False
+        user = get_current_user(self)
+        if user is None:
+            auth = self.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                self.send_json({"error": "Authentication required"}, 401)
+                return True
+        return False
+
     def do_GET(self):
         p = self.path.split("?")[0].rstrip("/")
+        if self._reject_disabled(p): return
         if p in ("", "/"): return self.send_html(get_frontend_html())
         if p == "/api/bounty":         return self.send_json(self._health())
         if p == "/api/stats":          return self.send_json(self._stats())
@@ -1782,6 +1798,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         p = self.path.rstrip("/")
+        if self._reject_disabled(p): return
         body = self.read_body()
         # Auth endpoints — no token required
         if p == "/api/auth/register":       return self.send_json(self._register_user(body), 201)
@@ -1820,6 +1837,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_PUT(self):
         p = self.path.rstrip("/")
+        if self._reject_disabled(p): return
         body = self.read_body()
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._update_finding(int(p.split("/")[-1]), body))
         if re.match(r"^/api/disclosures/\d+/advance$", p):
@@ -1832,6 +1850,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         p = self.path.rstrip("/")
+        if self._reject_disabled(p): return
         if re.match(r"^/api/findings/\d+$", p): return self.send_json(self._delete_finding(int(p.split("/")[-1])))
         if re.match(r"^/api/admin/users/\d+$", p):
             return self.send_json(self._admin_delete_user(int(p.split("/")[-1])))
