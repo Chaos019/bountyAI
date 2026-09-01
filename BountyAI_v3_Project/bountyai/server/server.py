@@ -114,12 +114,15 @@ def verify_password(password, stored):
     except Exception:
         return False
 
-def create_token(username, role):
-    return jwt_encode({
+def create_token(username, role, uid=None):
+    payload = {
         "sub": username, "role": role,
         "iat": int(time.time()),
         "exp": int(time.time()) + JWT_EXPIRY_HOURS * 3600
-    })
+    }
+    if uid is not None:
+        payload["uid"] = uid
+    return jwt_encode(payload)
 
 def get_current_user(handler):
     """Extract and validate JWT from Authorization header. Returns dict or None."""
@@ -224,12 +227,16 @@ def init_db():
         pass
     conn.execute("""CREATE TABLE IF NOT EXISTS findings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        program_name TEXT, target_domain TEXT, vuln_type TEXT, severity TEXT,
+        user_id INTEGER, program_name TEXT, target_domain TEXT, vuln_type TEXT, severity TEXT,
         cvss_score REAL, title TEXT, affected_url TEXT, description TEXT,
         steps_to_reproduce TEXT, impact TEXT, cwe_id TEXT, owasp_category TEXT,
         status TEXT DEFAULT 'draft', payout_amount REAL DEFAULT 0, proof_files TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
+    try:
+        conn.execute("ALTER TABLE findings ADD COLUMN user_id INTEGER")
+    except Exception:
+        pass
     conn.execute("""CREATE TABLE IF NOT EXISTS recon_results (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         target_domain TEXT, subdomains TEXT, tech_stack TEXT, open_ports TEXT,
@@ -1651,8 +1658,13 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         }
 
     def _stats(self):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         conn = get_db()
-        findings = conn.execute("SELECT severity, status, payout_amount FROM findings").fetchall()
+        if uid:
+            findings = conn.execute("SELECT severity, status, payout_amount FROM findings WHERE user_id=?", (uid,)).fetchall()
+        else:
+            findings = conn.execute("SELECT severity, status, payout_amount FROM findings").fetchall()
         conn.close()
         by_sev = {"C":0,"H":0,"M":0,"L":0}
         by_status = {"draft":0,"submitted":0,"accepted":0,"rejected":0}
@@ -1724,8 +1736,13 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return {"programs": programs, "total": len(programs)}
 
     def _findings(self):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         conn = get_db()
-        rows = conn.execute("SELECT * FROM findings ORDER BY created_at DESC").fetchall()
+        if uid:
+            rows = conn.execute("SELECT * FROM findings WHERE user_id=? ORDER BY created_at DESC", (uid,)).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM findings ORDER BY created_at DESC").fetchall()
         conn.close()
         findings = []
         for r in rows:
@@ -1735,8 +1752,13 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return {"findings": findings}
 
     def _get_finding(self, fid):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         conn = get_db()
-        r = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
+        if uid:
+            r = conn.execute("SELECT * FROM findings WHERE id=? AND user_id=?", (fid, uid)).fetchone()
+        else:
+            r = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
         conn.close()
         if not r: return {"error": "not found"}
         d = dict(r)
@@ -1744,13 +1766,15 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return d
 
     def _create_finding(self, body):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         cvss = calculate_cvss(body.get("severity","M"), body.get("vuln_type",""), body.get("impact",""))
         title = body.get("title","") or f"{body.get('vuln_type','Vulnerability')} in {body.get('target_domain','target')}"
         conn = get_db()
         cur = conn.execute("""INSERT INTO findings 
-            (program_name, target_domain, vuln_type, severity, cvss_score, title, affected_url, description, steps_to_reproduce, impact, cwe_id, owasp_category)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (body.get("program_name",""), body.get("target_domain",""), body.get("vuln_type",""),
+            (user_id, program_name, target_domain, vuln_type, severity, cvss_score, title, affected_url, description, steps_to_reproduce, impact, cwe_id, owasp_category)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (uid, body.get("program_name",""), body.get("target_domain",""), body.get("vuln_type",""),
              (body.get("severity","M") or "M")[0].upper(), cvss["score"], title, body.get("affected_url",""),
              body.get("description",""), body.get("steps_to_reproduce",""), body.get("impact",""), cvss["cwe"], cvss["owasp"]))
         conn.commit()
@@ -1759,7 +1783,16 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return {"finding": {"id": fid, "title": title, "cvss_score": cvss["score"]}, "cvss": cvss}
 
     def _update_finding(self, fid, body):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         conn = get_db()
+        row = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
+        if not row:
+            conn.close()
+            return {"error": "not found"}
+        if uid and row["user_id"] and row["user_id"] != uid:
+            conn.close()
+            return {"error": "access denied"}
         allowed = ["vuln_type","severity","title","affected_url","description","steps_to_reproduce","impact","status","payout_amount","program_name","target_domain"]
         sets = [f"{k}=?" for k in allowed if k in body]
         vals = [body[k] for k in allowed if k in body] + [fid]
@@ -1771,7 +1804,16 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
         return dict(row) if row else {"error": "not found"}
 
     def _delete_finding(self, fid):
+        user = get_current_user(self)
+        uid = user.get("uid") if user else None
         conn = get_db()
+        row = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone()
+        if not row:
+            conn.close()
+            return {"error": "not found"}
+        if uid and row["user_id"] and row["user_id"] != uid:
+            conn.close()
+            return {"error": "access denied"}
         conn.execute("DELETE FROM findings WHERE id=?", (fid,))
         conn.commit()
         conn.close()
@@ -1933,7 +1975,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             if not google_info or not google_info.get("google_id"):
                 return self.send_html("<script>localStorage.setItem('bountyai_google_error','Failed to verify Google account');window.location='/'</script>")
             user = google_find_or_create_user(google_info)
-            token = create_token(user["username"], user["role"])
+            token = create_token(user["username"], user["role"], user["id"])
             return self.send_html(f"""<script>
             localStorage.setItem('bountyai_token','{token}');
             localStorage.setItem('bountyai_user',JSON.stringify({{"username":"{user['username']}","role":"{user['role']}"}}));
@@ -1978,10 +2020,11 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             return {"error": "Invalid role. Must be admin, analyst, or viewer"}
         conn = get_db()
         try:
-            conn.execute("INSERT INTO users (username,email,password_hash,role) VALUES (?,?,?,?)",
+            cur = conn.execute("INSERT INTO users (username,email,password_hash,role) VALUES (?,?,?,?)",
                          (username, email, hash_password(password), role))
             conn.commit()
-            token = create_token(username, role)
+            uid = cur.lastrowid
+            token = create_token(username, role, uid)
             return {"token": token, "username": username, "role": role, "email": email}
         except sqlite3.IntegrityError:
             return {"error": "Username or email already exists"}
@@ -2000,7 +2043,7 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
             return {"error": "Invalid credentials"}
         if not user["is_active"]:
             return {"error": "Account is disabled"}
-        token = create_token(user["username"], user["role"])
+        token = create_token(user["username"], user["role"], user["id"])
         return {"token": token, "username": user["username"], "role": user["role"], "email": user["email"]}
     def _ml_predict(self, body): return predict_vulns(body.get("domain",""), body.get("tech_stack"))
 
