@@ -744,12 +744,47 @@ def suggestions_for_tech(tech):
     return sugs
 
 # ── NUCLEI LIVE SCANNING ──────────────────────────────────────
+def _nuclei_templates_ready():
+    return NUCLEI_TEMPLATES_DIR.exists() and (NUCLEI_TEMPLATES_DIR / "http").is_dir()
+
+def _clone_templates_via_tarball():
+    """Fallback: fetch the template catalog as a tarball (no git needed)."""
+    import tarfile
+    url = "https://github.com/projectdiscovery/nuclei-templates/archive/refs/heads/main.tar.gz"
+    tmp = NUCLEI_TEMPLATES_DIR.parent / "_nuclei_templates.tgz"
+    print("  [Nuclei] Downloading template catalog (tarball)...")
+    with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "BountyAI/3.0"}), timeout=300) as r, open(tmp, "wb") as f:
+        shutil.copyfileobj(r, f)
+    with tarfile.open(tmp, "r:gz") as tf:
+        members = tf.getmembers()
+        root = members[0].name.split("/")[0] if members else ""
+        for m in members:
+            if not m.name.startswith(root + "/"):
+                continue
+            rel = m.name[len(root) + 1:]
+            if not rel:
+                continue
+            m.name = rel
+            try:
+                tf.extract(m, str(NUCLEI_TEMPLATES_DIR), filter="data")  # py>=3.12
+            except TypeError:
+                tf.extract(m, str(NUCLEI_TEMPLATES_DIR))
+    try:
+        tmp.unlink()
+    except Exception:
+        pass
+    return _nuclei_templates_ready()
+
 def ensure_nuclei_templates():
-    """Clone or update nuclei-templates repo. Returns path to templates dir."""
-    if NUCLEI_TEMPLATES_DIR.exists() and (NUCLEI_TEMPLATES_DIR / "http").is_dir():
+    """Clone or update the nuclei-templates repo. Returns the templates dir.
+
+    Tries git first, then falls back to a tarball download so the catalog is
+    also available where git is missing or the clone is too slow.
+    """
+    if _nuclei_templates_ready():
         try:
             subprocess.run(["git", "-C", str(NUCLEI_TEMPLATES_DIR), "pull", "-q"],
-                           capture_output=True, timeout=30)
+                           capture_output=True, timeout=60)
         except Exception:
             pass
         return NUCLEI_TEMPLATES_DIR
@@ -759,13 +794,20 @@ def ensure_nuclei_templates():
             "git", "clone", "--depth", "1",
             "https://github.com/projectdiscovery/nuclei-templates.git",
             str(NUCLEI_TEMPLATES_DIR)
-        ], capture_output=True, timeout=120)
-        if NUCLEI_TEMPLATES_DIR.exists():
+        ], capture_output=True, timeout=300)
+        if _nuclei_templates_ready():
             print(f"  [Nuclei] Templates cloned to {NUCLEI_TEMPLATES_DIR}")
-        return NUCLEI_TEMPLATES_DIR
+            return NUCLEI_TEMPLATES_DIR
+        print("  [Nuclei] git clone did not produce a usable catalog — trying tarball...")
     except Exception as e:
-        print(f"  [Nuclei] Clone failed: {e}")
-        return None
+        print(f"  [Nuclei] Clone failed ({e}) — trying tarball...")
+    try:
+        if _clone_templates_via_tarball():
+            print(f"  [Nuclei] Templates downloaded to {NUCLEI_TEMPLATES_DIR}")
+            return NUCLEI_TEMPLATES_DIR
+    except Exception as e:
+        print(f"  [Nuclei] Template download failed: {e}")
+    return None
 
 def count_nuclei_templates():
     """Count actual .yaml template files in the nuclei-templates directory."""
@@ -866,6 +908,7 @@ def run_nuclei_scan(domain, severity_filter=None, tags_filter=None, template_id=
     }
 
 _NUCLEI_CATALOG_CACHE = {"sig": None, "data": None}
+_NUCLEI_CATALOG_LOCK = threading.Lock()
 
 def _nuclei_tree_signature():
     """Cheap cache key: newest mtime across all template subdirectories.
@@ -881,6 +924,17 @@ def _nuclei_tree_signature():
             pass
     return latest
 
+def _builtin_nuclei_catalog():
+    """Small always-available catalog (used while the real one warms up)."""
+    return {
+        "count": sum(len(v) for v in NUCLEI_TEMPLATES.values()),
+        "sources": ["projectdiscovery/nuclei", "builtin-cache"],
+        "templates": NUCLEI_TEMPLATES,
+        "available": False,
+        "notice": "Template catalog is still loading — this is the built-in preview. "
+                  "Run POST /api/nuclei/setup (admin) to fetch the full catalog."
+    }
+
 def nuclei_catalog():
     """Return real template count from disk, or fallback to hardcoded catalog.
 
@@ -888,8 +942,8 @@ def nuclei_catalog():
     opened and read every one of the ~8000 YAML files (including multiple 10 MB
     templates) on EVERY /api/nuclei/templates request, timing out the tab.
     """
-    sig = _nuclei_tree_signature()
     cached = _NUCLEI_CATALOG_CACHE.get("data")
+    sig = _nuclei_tree_signature()
     if cached is not None and _NUCLEI_CATALOG_CACHE.get("sig") == sig:
         return cached
     real_count = count_nuclei_templates()
@@ -906,13 +960,7 @@ def nuclei_catalog():
             "templates": NUCLEI_TEMPLATES
         }
     else:
-        result = {
-            "count": sum(len(v) for v in NUCLEI_TEMPLATES.values()),
-            "sources": ["projectdiscovery/nuclei", "builtin-cache"],
-            "templates": NUCLEI_TEMPLATES,
-            "available": False,
-            "notice": "Run POST /api/nuclei/setup to clone templates"
-        }
+        result = _builtin_nuclei_catalog()
     _NUCLEI_CATALOG_CACHE["sig"] = sig
     _NUCLEI_CATALOG_CACHE["data"] = result
     return result
@@ -2770,7 +2818,34 @@ class BountyHandler(http.server.BaseHTTPRequestHandler):
     def _get_activity(self): return {"events": []}
     def _get_payout_summary(self): return {"total_earned": 0.0, "payouts": []}
     def _discovery_results(self): return []
-    def _get_nuclei_templates(self): return nuclei_catalog()
+    def _get_nuclei_templates(self):
+        """Serve the template catalog without ever blocking the request.
+
+        A cold scan of ~14k YAML files can take tens of seconds, so the
+        background warm-up thread owns the real scan. Until it finishes we
+        return the cached catalog (or the small built-in preview) instantly.
+        """
+        cached = _NUCLEI_CATALOG_CACHE.get("data")
+        if cached is not None and _NUCLEI_CATALOG_CACHE.get("sig") == _nuclei_tree_signature():
+            return cached
+        if cached is not None:
+            return cached
+        # Nothing cached yet: do the scan, but never block longer than 8s.
+        result = {}
+        done = threading.Event()
+
+        def worker():
+            try:
+                result["data"] = nuclei_catalog()
+            except Exception:
+                pass
+            finally:
+                done.set()
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        done.wait(8)
+        return result.get("data") or _builtin_nuclei_catalog()
     def _auth_me(self):
         user = get_current_user(self)
         if not user:
@@ -3024,6 +3099,21 @@ def open_browser():
         else: subprocess.Popen(["xdg-open", url])
     except: pass
 
+def warm_nuclei_catalog():
+    """Make sure the template catalog is real, then cache it.
+
+    On a public deployment the templates may not be baked into the image
+    (Render's disk is ephemeral and the build may not clone them), so clone
+    them once at boot in the background. The HTTP server never blocks on this.
+    """
+    try:
+        if not (NUCLEI_TEMPLATES_DIR.exists() and (NUCLEI_TEMPLATES_DIR / "http").is_dir()):
+            ensure_nuclei_templates()
+        nuclei_catalog()
+    except Exception as e:
+        print(f"  [Nuclei] catalog warm-up skipped: {e}")
+
+
 def main():
     print("\n" + "=" * 62)
     print("  BountyAI v3.0 - Pure Python Bug Bounty Platform")
@@ -3032,7 +3122,7 @@ def main():
     # Warm the nuclei template catalog in the background so the first
     # /api/nuclei/templates request never blocks (cold NTFS scans of
     # ~14k template files can take >30s right after boot).
-    threading.Thread(target=nuclei_catalog, daemon=True).start()
+    threading.Thread(target=warm_nuclei_catalog, daemon=True).start()
     base = get_base_url()
     print(f"  DB: {DB_PATH.name}")
     print(f"  Port: {PORT}")
