@@ -6,9 +6,11 @@ services:
       curl -sL https://github.com/projectdiscovery/nuclei/releases/download/v3.1.1/nuclei_3.1.1_linux_amd64.zip -o /tmp/nuclei.zip &&
       unzip -o /tmp/nuclei.zip nuclei -d BountyAI_v3_Project/bountyai/server/ &&
       chmod +x BountyAI_v3_Project/bountyai/server/nuclei &&
-      rm /tmp/nuclei.zip
+      rm /tmp/nuclei.zip &&
+      git clone --depth 1 https://github.com/projectdiscovery/nuclei-templates.git BountyAI_v3_Project/bountyai/server/nuclei-templates
     startCommand: python BountyAI_v3_Project/bountyai/server/server.py
     envVars:
+      # --- secrets: set the real values in the Render dashboard ---
       - key: JWT_SECRET
         generateValue: true
       - key: GOOGLE_CLIENT_ID
@@ -17,4 +19,18 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
+      # The code falls back to nvidia/nemotron-3.5-super-vl:free if this is
+      # unset or points at a retired model id.
+      - key: OPENROUTER_MODEL
+        sync: false
+      # Deterministic admin: re-created on every (ephemeral-disk) deploy.
+      # SET BOTH in the Render dashboard, otherwise the first person to
+      # register becomes admin.
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Never seed admin/admin123 on the public deployment.
+      - key: SEED_DEFAULT_USERS
+        value: "false"
     healthCheckPath: /api/health

@@ -1,21 +1,33 @@
-# Use a lightweight Python image
+# BountyAI v3 — pure Python stdlib, zero external dependencies.
+# (The old Dockerfile referenced FastAPI/uvicorn, which are NOT part of this
+#  project and were never installed — see requirements.txt.)
 FROM python:3.11-slim
 
-# Prevent Python from writing .pyc files and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# curl/unzip for the nuclei binary, git for the template catalog.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl unzip git ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install dependencies
+# requirements.txt is intentionally empty (stdlib only); kept for Render/CI detection.
 COPY ./bountyai/server/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the source code
+# Copy the whole app (server + frontend)
 COPY ./bountyai ./bountyai
 
-# Expose the FastAPI port
-EXPOSE 8000
+# nuclei binary + its template catalog (both are gitignored, so they are
+# fetched at build time instead of being committed).
+RUN curl -sL https://github.com/projectdiscovery/nuclei/releases/download/v3.1.1/nuclei_3.1.1_linux_amd64.zip -o /tmp/nuclei.zip \
+    && unzip -o /tmp/nuclei.zip nuclei -d bountyai/server/ \
+    && chmod +x bountyai/server/nuclei \
+    && rm /tmp/nuclei.zip \
+    && git clone --depth 1 https://github.com/projectdiscovery/nuclei-templates.git bountyai/server/nuclei-templates
 
-# Run the application with Uvicorn
-CMD ["uvicorn", "bountyai.server.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Server binds $PORT (default 5000) and serves the frontend + API
+EXPOSE 5000
+
+CMD ["python", "-u", "bountyai/server/server.py"]

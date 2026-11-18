@@ -188,6 +188,13 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
 .pfilt{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
 .pfilt input{max-width:200px;width:auto;flex:1}
 .fchip{font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;background:var(--glass);border:1px solid var(--glass-border);color:rgba(255,255,255,.4);cursor:pointer;transition:all .15s var(--ease);user-select:none}
+/* ── AI vuln-classify candidate chips (Log Finding) ── */
+.ftype-chip{font-size:11px;font-weight:600;padding:5px 10px;border-radius:4px;background:var(--glass);border:1px solid var(--glass-border);color:var(--t2);cursor:pointer;transition:all .15s var(--ease);user-select:none}
+.ftype-chip:hover{transform:translateY(-1px);border-color:var(--cyan);color:var(--txt)}
+.ftype-chip b{opacity:.65;font-weight:600}
+.ftype-chip.ch-hi{border-color:rgba(53,232,196,.5);color:var(--lime)}
+.ftype-chip.ch-md{border-color:rgba(72,150,255,.45);color:var(--blue)}
+.ftype-chip.ch-lo{border-color:rgba(255,201,68,.4);color:var(--yellow)}
 .fchip:hover,.fchip.on{background:var(--cyan-dim);border-color:rgba(0,242,255,.3);color:var(--neon-cyan)}
 
 /* ── FORGE LAB & VISUAL MAPS ── */
@@ -525,6 +532,7 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
   <div class="nav" id="nav">
     <button class="ntab on" onclick="go('dash')" id="tab-dash"><span class="ndot"></span><span>Dashboard</span></button>
     <button class="ntab" onclick="go('lab')" id="tab-lab" style="color:var(--red)"><span class="ndot"></span><span>🧠 AI Intelligence (Forge)</span></button>
+    <button class="ntab" onclick="go('glab')" id="tab-glab" style="color:var(--cy)"><span class="ndot"></span><span>⚡ AI Security Lab</span></button>
     <button class="ntab" onclick="go('recon')" id="tab-recon"><span class="ndot"></span><span>📡 Recon & Discovery</span></button>
     <button class="ntab" onclick="go('log')" id="tab-log"><span class="ndot"></span><span>⚠ Log Finding</span></button>
     <button class="ntab" onclick="go('report')" id="tab-report"><span class="ndot"></span><span>📄 AI Report Generator</span></button>
@@ -585,6 +593,7 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
       <div class="strip">⬡ Local LLM Toggle · 20-Module Agent Pipeline · Visual Node Logic<span class="sr">BUILT FOR PRECISION</span></div>
       <div class="hbtns">
         <button class="btn blime" onclick="go('lab')">🧠 Open AI Forge</button>
+        <button class="btn bcyan" onclick="go('glab')">⚡ AI Security Lab</button>
         <button class="btn bghost" onclick="go('recon')">🔍 Quick Recon</button>
         <button class="btn bdim" onclick="go('log')">⚠ Log Finding</button>
       </div>
@@ -611,6 +620,15 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
       <div class="sl">7-Day Visibility Trend</div>
       <canvas id="trend-chart"></canvas>
     </div>
+  </div>
+
+  <!-- Quick actions — entry points for the specialist workspaces -->
+  <div class="card cp" style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div class="sl" style="margin-bottom:0">Quick Actions</div>
+    <button class="btn bdim" onclick="go('ml')">🤖 ML Predict</button>
+    <button class="btn bdim" onclick="go('nuclei')">🔍 Nuclei Scan</button>
+    <button class="btn bdim" onclick="go('conn')">🔌 Integrations</button>
+    <button class="btn bdim" onclick="go('disclose')">🔒 Private Disclosure</button>
   </div>
 
   <div class="dlayout">
@@ -812,9 +830,10 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
   <div class="g2">
     <div class="card cp">
       <div class="sl">Predict Vulnerability</div>
-      <div class="fg full"><label>TARGET DOMAIN</label><input id="ml-domain" placeholder="example.com"></div>
-      <div class="fg full"><label>TECHNOLOGY STACK (comma separated)</label><input id="ml-tech" placeholder="nginx, mysql, react, aws"></div>
-      <button class="btn blime" onclick="runMLPredict()">Run Prediction</button>
+      <div class="fg full"><label>TARGET DOMAIN</label><input id="ml-domain" placeholder="example.com (leave empty = auto from last recon)"></div>
+      <div class="fg full"><label>TECHNOLOGY STACK (comma separated)</label><input id="ml-tech" placeholder="nginx, mysql, react, aws (leave empty = auto-detect)"></div>
+      <button class="btn blime" id="ml-btn" onclick="runMLPredict()">⚡ Predict</button>
+      <div style="font-size:10px;color:var(--t3);margin-top:8px">🪄 Leave both fields empty — the target and its tech stack are auto-detected from your last recon scan (live fingerprint if none).</div>
     </div>
     <div class="card cp">
       <div class="sl">Prediction Results</div>
@@ -843,7 +862,35 @@ label{display:block;font-family:'Space Grotesk',monospace;font-size:9px;letter-s
       <div class="sl">New Finding</div>
       <div class="card cp">
         <div class="g2">
-          <div class="fg"><label>VULNERABILITY TYPE</label><select id="fvt" onchange="recalc()"><option>Cross-Site Scripting (XSS)</option><option>SQL Injection</option><option>IDOR (Insecure Direct Object Reference)</option><option>SSRF (Server-Side Request Forgery)</option><option>Command Injection</option><option>Broken Authentication</option><option>CSRF</option><option>Sensitive Data Exposure</option><option>Mass Assignment</option><option>Open Redirect</option><option>Path Traversal</option><option>RCE (Remote Code Execution)</option></select></div>
+          <div class="fg">
+            <label style="display:flex;align-items:center;gap:8px">VULNERABILITY TYPE
+              <button id="ai-detect-btn" class="btn blime bsm" style="margin-left:auto" onclick="aiDetectVuln()">🪄 AI Auto-Detect</button>
+            </label>
+            <input id="fvt" list="fvt-types" onchange="recalc()" placeholder="Type any vuln pattern, pick from list, or click AI Auto-Detect">
+            <datalist id="fvt-types">
+              <option value="Cross-Site Scripting (XSS)"></option>
+              <option value="SQL Injection"></option>
+              <option value="IDOR (Insecure Direct Object Reference)"></option>
+              <option value="SSRF (Server-Side Request Forgery)"></option>
+              <option value="Command Injection"></option>
+              <option value="Broken Authentication"></option>
+              <option value="CSRF"></option>
+              <option value="Sensitive Data Exposure"></option>
+              <option value="Mass Assignment"></option>
+              <option value="Open Redirect"></option>
+              <option value="Path Traversal"></option>
+              <option value="RCE (Remote Code Execution)"></option>
+              <option value="Server-Side Template Injection (SSTI)"></option>
+              <option value="GraphQL Introspection"></option>
+              <option value="JWT Algorithm Confusion"></option>
+              <option value="Subdomain Takeover"></option>
+              <option value="CORS Misconfiguration"></option>
+              <option value="Prototype Pollution"></option>
+              <option value="Insecure Deserialization"></option>
+              <option value="NoSQL Injection"></option>
+            </datalist>
+            <div id="ftype-chips" style="display:none;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+          </div>
           <div class="fg"><label>SEVERITY</label><select id="fvs" onchange="recalc()"><option value="C">Critical (9.0–10.0)</option><option value="H" selected>High (7.0–8.9)</option><option value="M">Medium (4.0–6.9)</option><option value="L">Low (0.1–3.9)</option></select></div>
           <div class="fg"><label>PROGRAM</label><input id="fvp" placeholder="Target program name"></div>
           <div class="fg"><label>TARGET DOMAIN</label><input id="fvd" placeholder="target.com"></div>
@@ -1265,6 +1312,9 @@ function doRegister() {
       updateUserPill();
       checkHealth();
       loadDash();
+      // The server may refuse a self-selected admin role (privilege-escalation
+      // guard) — tell the user which role was actually granted.
+      if (d.note) showToast(String(d.note).trim(), 'err');
     })
     .catch(function(e) { errEl.textContent = 'Connection failed'; errEl.style.display = 'block'; });
 }
@@ -1328,10 +1378,12 @@ function checkAuthToken() {
 // ──────────────────────────────────────────────────────────────────────
 // NAVIGATION
 // ──────────────────────────────────────────────────────────────────────
-function go(id) {
+function go(id, updateHistory) {
   var origId = id;
-  if (id === 'lab') id = 'glab';
-  
+  // remember if this tab was ALREADY active — re-clicking shouldn't stack duplicate history entries
+  var preTab = document.getElementById('tab-' + origId);
+  var tabAlreadyOn = !!(preTab && preTab.className.split(' ').indexOf('on') !== -1);
+
   TABS.forEach(function(t) {
     var p = document.getElementById('panel-' + t);
     var tab = document.getElementById('tab-' + t);
@@ -1359,15 +1411,34 @@ function go(id) {
     if ((id === 'dash' || origId === 'dash') && typeof loadDash === 'function') loadDash();
     if ((id === 'prog' || origId === 'prog') && typeof loadProgs === 'function') loadProgs();
     if ((id === 'nuclei' || origId === 'nuclei') && typeof loadNucleiTemplates === 'function') loadNucleiTemplates();
-    if (id === 'ml') { var el = document.getElementById('ml-results'); if (el) el.innerHTML = '<div style="color:var(--t3);text-align:center;padding:20px">Enter domain and tech stack above</div>'; }
+    if (id === 'ml') {
+      // ML Predict is auto-detect by design: the server derives the domain and
+      // tech stack from the last recon scan (or a live fingerprint) whenever
+      // the fields are blank — the user never has to type a stack.
+      if (typeof runMLPredict === 'function') runMLPredict();
+    }
     if (id === 'learn' || origId === 'learn') { if (typeof loadLearning === 'function') loadLearning(); if (typeof renderCourses === 'function') renderCourses(); if (typeof renderLearningModules === 'function') renderLearningModules(); if (typeof updateGlobalProgress === 'function') updateGlobalProgress(); if (typeof allResources !== 'undefined' && !allResources.length) loadResources(); }
     if ((id === 'log' || id === 'report' || origId === 'log' || origId === 'report') && typeof loadFindings === 'function') loadFindings();
     if (id === 'conn' && typeof renderIntegrations === 'function') renderIntegrations();
     if (id === 'disclose') { if (typeof loadDisclosures === 'function') loadDisclosures(); if (typeof renderCollaborators === 'function') renderCollaborators(); }
     if (id === 'admin' && typeof loadAdminPanel === 'function') loadAdminPanel();
   } catch(e) { console.warn('Tab load warning:', e); }
+
+  // keep browser Back/Forward inside the SPA (each tab switch is a history entry);
+  // popstate passes updateHistory=false so Back RESTORES instead of appending a new entry
+  if (updateHistory !== false && !tabAlreadyOn) {
+    try { history.pushState({tab: origId}, '', '#' + origId); } catch(e) {}
+  }
 }
 window.go = go;
+
+// make the browser Back/Forward buttons switch tabs instead of leaving the page
+window.addEventListener('popstate', function(e) {
+  var tab = (e.state && e.state.tab) ? e.state.tab : 'dash';
+  // validate the tab still exists (e.g. stale state from a different build), else fall back to dash
+  if (!document.getElementById('panel-' + tab)) tab = 'dash';
+  go(tab, false);
+});
 
 // ──────────────────────────────────────────────────────────────────────
 // TOAST
@@ -1562,8 +1633,9 @@ function doRecon() {
   btn.textContent = 'Scanning...'; btn.disabled = true;
   var pre = [
     '<span class="tp">bountyai@ai:~$ </span><span style="color:var(--txt)">recon --target '+domain+' --modules all --full</span>',
-    '<span class="td">[*] Initializing 20-module pipeline...</span>',
+    '<span class="td">[*] Initializing 20-module pipeline (parallel engine)...</span>',
     '<span class="ts">[+] Target: '+domain+'</span>',
+    '<span class="td">[*] Launching modules concurrently on 24 threads...</span>',
     '<span class="td">[*] Querying crt.sh (LIVE)...</span>',
     '<span class="td">[*] Fingerprinting tech stack...</span>',
     '<span class="td">[*] Querying NVD CVE database...</span>',
@@ -1586,6 +1658,10 @@ function doRecon() {
         ].forEach(function(l){var el=document.createElement('div');el.innerHTML=l;term.appendChild(el);});
         term.scrollTop = term.scrollHeight;
         showReconOut(r);
+        // prefill the ML panel with this scan's target + detected stack (only if blank)
+        var mdi = document.getElementById('ml-domain'), mti = document.getElementById('ml-tech');
+        if (mdi && !mdi.value) mdi.value = domain;
+        if (mti && !mti.value && (r.tech_stack||[]).length) mti.value = (r.tech_stack||[]).map(function(t){ return t.name || t; }).join(', ');
       }).catch(function(e){
         var el=document.createElement('div');el.innerHTML='<span class="te">[✗] '+e.message+'</span>';
         term.appendChild(el); showToast('Recon failed','err');
@@ -1728,35 +1804,12 @@ function clrRecon(){document.getElementById('termout').innerHTML='<div><span cla
 function runMLFromRecon() {
   var domain = document.getElementById('ri').value.trim().replace(/https?:\/\//,'').split('/')[0];
   if (!domain) { showToast('Enter a domain first','err'); return; }
-  var term = document.getElementById('termout');
-  term.innerHTML = '<div><span class="tp">bountyai@ai:~$ </span><span style="color:var(--cyan)">ml-predict --domain '+domain+'</span></div>';
-  term.innerHTML += '<div class="td">[*] Running ML vulnerability prediction...</div>';
-  
-  var techInput = prompt('Enter technology stack (comma separated):', 'nginx, mysql, react, aws');
-  if(!techInput) return;
-  var techStack = techInput.split(',').map(function(t){ return t.trim(); });
-  
-    api('POST','/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
-    term.innerHTML += '<div class="td" style="color:var(--green);margin-top:8px">[+] ML Predictions for <b>'+domain+'</b></div>';
-    term.innerHTML += '<div class="td" style="color:var(--t3);margin-bottom:4px">── Vulnerability Predictions ──</div>';
-    r.predictions.forEach(function(p){
-      var color = p.severity === 'CRITICAL' ? 'var(--red)' : p.severity === 'HIGH' ? 'var(--orange)' : p.severity === 'MEDIUM' ? 'var(--yellow)' : 'var(--lime)';
-      term.innerHTML += '<div class="td" style="padding-left:12px;margin:2px 0"><span style="color:'+color+'">['+p.severity+']</span> <b>'+p.type+'</b> ('+p.confidence+'% confidence)<br><span style="color:var(--t2);padding-left:16px">'+p.reason+'</span></div>';
-    });
-    currVulns = r.predictions;
-    document.getElementById('rout').style.display = 'block';
-    document.getElementById('rsubs').innerHTML = '<span style="color:var(--t3)">ML Prediction Mode</span>';
-    document.getElementById('rtech').innerHTML = techStack.map(function(t){return '<span class="techtag">'+t+'</span>'}).join('');
-    document.getElementById('rcves').innerHTML = '-';
-    document.getElementById('rvulns').innerHTML = currVulns.map(function(v,i){
-      return '<div class="vc '+(v.severity||'M')+'" style="cursor:pointer" onclick="autoLogVuln('+i+')" title="Click to auto-log">'
-        +'<div class="vch"><span class="sv sv'+(v.severity||'M')+'">'+(SN[v.severity]||v.severity)+'</span><div class="vct">'+v.type+'</div><span style="font-size:10px;color:var(--lime)">→ Log</span></div>'
-        +'<div class="vcd">'+v.reason+'</div></div>';
-    }).join('');
-    showToast('ML Prediction complete!');
-  }).catch(function(e){
-    term.innerHTML += '<div class="td" style="color:var(--red)">Error: '+e.message+'</div>';
-  });
+  // Hand off to the ML Predict workspace, which auto-detects the domain and
+  // tech stack (no manual typing — the stack is fingerprinted from the last
+  // recon scan or a live probe).
+  var md = document.getElementById('ml-domain');
+  if (md) md.value = domain;
+  go('ml');
 }
 
 function loadNucleiFromRecon() {
@@ -1772,8 +1825,9 @@ function loadNucleiFromRecon() {
       var color = t.severity === 'critical' ? 'var(--red)' : t.severity === 'high' ? 'var(--orange)' : t.severity === 'medium' ? 'var(--yellow)' : 'var(--lime)';
       term.innerHTML += '<div class="td" style="padding-left:12px;margin:2px 0"><span style="color:'+color+'">['+t.severity.toUpperCase()+']</span> <b>'+t.name+'</b> <span style="color:var(--t3)">('+t.id+')</span></div>';
     });
-    term.innerHTML += '<div class="td" style="color:var(--cyan);margin-top:6px">... view full list in Nuclei Templates tab</div>';
+    term.innerHTML += '<div class="td" style="color:var(--cyan);margin-top:6px">... opening the full Nuclei Templates workspace</div>';
     showToast('Templates loaded!');
+    go('nuclei');
   }).catch(function(e){
     term.innerHTML += '<div class="td" style="color:var(--red)">Error: '+e.message+'</div>';
   });
@@ -1869,8 +1923,50 @@ function recalc(){
   document.getElementById('cvssfill').style.width=row[2]; document.getElementById('cvssfill').style.background=row[1];
   document.getElementById('cvsslab').textContent=row[3];
 }
+function clrForm(){
+  ['fvu','fvdesc','fvsteps','fvimpact','fvp','fvd'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+  var chips=document.getElementById('ftype-chips'); if(chips){chips.style.display='none'; chips.innerHTML='';}
+}
+// ── AI AUTO-DETECT: classify description/URL into vuln type(s) ──────────
+function aiDetectVuln(){
+  var desc=document.getElementById('fvdesc').value.trim();
+  var url=document.getElementById('fvu').value.trim();
+  if(!desc && !url){ showToast('Type a description or affected URL first — then I can classify it','err'); return; }
+  var btn=document.getElementById('ai-detect-btn');
+  if(btn){ btn.disabled=true; btn.textContent='🧠 Detecting…'; }
+  api('POST','/analyze/classify',{description:desc, url:url, program:document.getElementById('fvp').value})
+    .then(function(r){
+      if(btn){ btn.disabled=false; btn.textContent='🪄 AI Auto-Detect'; }
+      if(r.error){ showToast(r.error,'err'); return; }
+      var types=r.types||[];
+      if(!types.length){ showToast('No vulnerability pattern recognized — type it manually','err'); return; }
+      document.getElementById('fvt').value=types[0].type;
+      if(r.severity) document.getElementById('fvs').value=r.severity;
+      recalc();
+      renderTypeChips(types);
+      showToast('Detected: '+types[0].type+' ('+types[0].confidence+'% conf.)','ok');
+    })
+    .catch(function(e){
+      if(btn){ btn.disabled=false; btn.textContent='🪄 AI Auto-Detect'; }
+      showToast('Detect failed: '+e.message,'err');
+    });
+}
+function renderTypeChips(types){
+  var box=document.getElementById('ftype-chips'); if(!box) return;
+  box.style.display='flex';
+  box.innerHTML='<span style="font-size:10px;color:var(--t3);align-self:center;letter-spacing:1px">ALTERNATIVE TYPES →</span>'+
+    types.map(function(t){
+      var cls='ftype-chip '+(t.confidence>=80?'ch-hi':t.confidence>=60?'ch-md':'ch-lo');
+      return '<span class="'+cls+'" data-v="'+String(t.type).replace(/"/g,'&quot;').replace(/</g,'&lt;')+'" onclick="pickType(this)">'+String(t.type).replace(/</g,'&lt;')+' <b>'+t.confidence+'%</b></span>';
+    }).join('');
+}
+function pickType(el){
+  var v=el.getAttribute('data-v'); if(!v) return;
+  document.getElementById('fvt').value=v;
+  recalc();
+  showToast('Type set to: '+v+' — log it, then pick another chip','ok');
+}
 function fkUp(){document.getElementById('uplbl').textContent='📸 screenshot_exploit_'+Date.now()+'.png (328KB) attached';}
-function clrForm(){['fvu','fvdesc','fvsteps','fvimpact','fvp','fvd'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});}
 function fillSample(){
   document.getElementById('fvt').value='Cross-Site Scripting (XSS)';
   document.getElementById('fvs').value='H';
@@ -2345,37 +2441,6 @@ var AUT_DESCS = [
   'Level 3 — Semi-Automated: AI scans + exploits automatically. Human confirms before mitigation. Current Bug Bounty Assistant default.',
   'Level 4 — Full Cybersecurity AI: AI plans, scans, exploits, and mitigates. Human reviews results only. Maximum autonomy.'
 ];
-function setAutonomy(level){
-  currentAutonomy = level;
-  document.querySelectorAll('.autonomy-opt').forEach(function(el){
-    el.style.borderColor = 'var(--ln)';
-    el.style.background = '';
-  });
-  var sel = document.getElementById('aut-'+level);
-  if(sel){
-    var colors = ['','rgba(239,35,60,.12)','rgba(53,232,196,.1)','rgba(239,35,60,.12)','rgba(255,63,98,.1)'];
-    var borders = ['','rgba(239,35,60,.5)','rgba(53,232,196,.5)','rgba(239,35,60,.5)','rgba(255,63,98,.5)'];
-    sel.style.borderColor = borders[level];
-    sel.style.background = colors[level];
-  }
-  var desc = document.getElementById('aut-desc');
-  if(desc) desc.textContent = AUT_DESCS[level];
-  renderAgentDots();
-  showToast('Autonomy set to Level '+level, 'inf');
-}
-function renderAgentDots(){
-  ['red','bb','blue'].forEach(function(agent){
-    var el = document.getElementById(agent+'-dots');
-    if(!el) return;
-    var html = '';
-    for(var i=1;i<=4;i++) html += '<div class="adot2'+(i<=currentAutonomy?' lit':'')+'"  title="Level '+i+'"></div>';
-    el.innerHTML = html;
-  });
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// AGENT PERSONAS (Paper 1 — Figure 5)
-// ──────────────────────────────────────────────────────────────────────
 function loadAgentConfig(){
   api('GET','/agent/config').then(function(r){
     currentAutonomy = r.autonomy_level || 3;
@@ -2402,6 +2467,16 @@ function setAutonomy(level){
   renderAgentDots();
   saveAgentConfig();
   showToast('Autonomy set to Level '+level, 'ok');
+}
+function renderAgentDots(){
+  if(typeof currentAutonomy === 'undefined') return;
+  ['red','bb','blue'].forEach(function(agent){
+    var el = document.getElementById(agent+'-dots');
+    if(!el) return;
+    var html = '';
+    for(var i=1;i<=4;i++) html += '<div class="adot2'+(i<=currentAutonomy?' lit':'')+'"  title="Level '+i+'"></div>';
+    el.innerHTML = html;
+  });
 }
 function activateAgent(type, silent){
   currentAgent = type;
@@ -2653,21 +2728,30 @@ function loadNucleiTemplates(){
     });
 }
 function runMLPredict(){
-    var domain = document.getElementById('ml-domain').value;
-    var tech = document.getElementById('ml-tech').value;
-    if(!domain || !tech){
-        showToast('Enter domain and tech stack', 'err');
-        return;
+  var domain = document.getElementById('ml-domain').value;
+  var tech = document.getElementById('ml-tech').value;
+  var btn = document.getElementById('ml-btn');
+  if(btn){ btn.disabled = true; btn.textContent = '🧠 Auto-detecting…'; }
+  var body = {domain: domain, tech_stack: tech ? tech.split(',').map(function(t){ return t.trim(); }).filter(Boolean) : []};
+  api('POST','/ml/predict',body).then(function(r){
+    if(btn){ btn.disabled = false; btn.textContent = '⚡ Predict'; }
+    if(r.error){ showToast(r.error,'err'); return; }
+    var isAuto = r.auto && r.auto.source && r.auto.source !== 'manual';
+    if(isAuto){
+      document.getElementById('ml-domain').value = r.auto.domain;
+      document.getElementById('ml-tech').value = (r.auto.tech_stack||[]).join(', ');
+      showToast('Auto-detected: '+r.auto.domain+' — '+((r.auto.tech_stack||[]).join(', ') || 'no stack fingerprinted, using heuristics'), 'ok');
     }
-    var techStack = tech.split(',').map(function(t){ return t.trim(); });
-  api('POST','/ml/predict',{domain:domain,tech_stack:techStack}).then(function(r){
-        var el = document.getElementById('ml-results');
-        if(!el) return;
-        el.innerHTML = r.predictions.map(function(p){
+    var el = document.getElementById('ml-results');
+    if(!el) return;
+    var badge = isAuto ? '<div style="font-size:10px;color:var(--lime);margin-bottom:12px">🪄 auto-detected from <b>'+(r.auto.source === 'auto-recon' ? 'last recon scan' : 'live fingerprint')+'</b> — '+r.auto.domain+'</div>' : '';
+    el.innerHTML = badge + r.predictions.map(function(p){
             var color = p.severity === 'CRITICAL' ? 'var(--red)' : p.severity === 'HIGH' ? 'var(--orange)' : p.severity === 'MEDIUM' ? 'var(--yellow)' : 'var(--lime)';
             return '<div style="background:var(--bg4);padding:12px;margin-bottom:8px;border-radius:4px;border-left:3px solid '+color+'"><div style="display:flex;justify-content:space-between"><span style="font-weight:700">'+p.type+'</span><span style="color:'+color+';font-weight:700">'+p.confidence+'%</span></div><div style="font-size:11px;color:var(--t2);margin-top:4px">'+p.reason+'</div><div style="font-size:10px;color:var(--t3);margin-top:4px">Severity: '+p.severity+'</div></div>';
         }).join('');
     }).catch(function(e){
+        var btn = document.getElementById('ml-btn');
+        if(btn){ btn.disabled = false; btn.textContent = '⚡ Predict'; }
         showToast('Error: '+e.message, 'err');
     });
 }
@@ -3377,6 +3461,7 @@ if (checkAuthToken()) {
 }
 checkHealth();
 loadDash();
+history.replaceState({tab: 'dash'}, '', '#dash');
 if (typeof renderLearningModules === 'function') renderLearningModules();
 if (typeof updateGlobalProgress === 'function') updateGlobalProgress();
 setInterval(checkHealth, 30000);
